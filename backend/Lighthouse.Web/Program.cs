@@ -87,19 +87,16 @@ builder.Services.AddScoped<OkrMetricsService>();
 
 builder.Services.AddControllersWithViews();
 
-if (builder.Environment.IsDevelopment())
+builder.Services.AddCors(options =>
 {
-    builder.Services.AddCors(options =>
+    options.AddPolicy("FrontendIntegration", policy =>
     {
-        options.AddPolicy("ViteDev", policy =>
-        {
-            policy.WithOrigins("http://localhost:5173")
-                .AllowAnyHeader()
-                .AllowAnyMethod()
-                .AllowCredentials();
-        });
+        policy.WithOrigins("http://localhost:5173", "https://intext-w2026.vercel.app")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
     });
-}
+});
 
 var app = builder.Build();
 
@@ -133,8 +130,7 @@ catch (Exception ex)
 if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Home/Error");
 
-if (app.Environment.IsDevelopment())
-    app.UseCors("ViteDev");
+app.UseCors("FrontendIntegration");
 
 app.UseSerilogRequestLogging();
 

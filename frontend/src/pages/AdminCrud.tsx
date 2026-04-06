@@ -10,7 +10,10 @@ export function AdminCrud() {
   const [err, setErr] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<{ id: string } | null>(null)
 
-  const url = useMemo(() => `/api/admin/data/${encodeURIComponent(entity ?? '')}`, [entity])
+  const url = useMemo(() => {
+    const baseUrl = import.meta.env.VITE_API_URL || ''
+    return `${baseUrl}/api/admin/data/${encodeURIComponent(entity ?? '')}`
+  }, [entity])
 
   useEffect(() => {
     if (!entity) return

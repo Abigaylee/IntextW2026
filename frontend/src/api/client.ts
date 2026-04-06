@@ -1,5 +1,7 @@
 export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
+  const baseUrl = import.meta.env.VITE_API_URL || ''
+  const finalUrl = url.startsWith('/') ? `${baseUrl}${url}` : url
+  const res = await fetch(finalUrl, {
     ...init,
     credentials: 'include',
     headers: {
