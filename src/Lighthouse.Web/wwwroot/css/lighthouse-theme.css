@@ -1,0 +1,323 @@
+/* Lighthouse UI — aligned with UI_Examples mockups (landing + dashboards) */
+
+:root {
+  --lh-primary: #5d8bf4;
+  --lh-primary-hover: #4a6cf7;
+  --lh-primary-soft: #e8f0fe;
+  --lh-success: #52a477;
+  --lh-success-soft: #e8f5ef;
+  --lh-ink: #0f172a;
+  --lh-muted: #64748b;
+  --lh-border: #e2e8f0;
+  --lh-surface: #f1f5f9;
+  --lh-card: #ffffff;
+  --lh-radius: 14px;
+  --lh-radius-pill: 999px;
+  --bs-primary: #5d8bf4;
+  --bs-primary-rgb: 93, 139, 244;
+}
+
+[data-bs-theme="dark"] {
+  --lh-ink: #f8fafc;
+  --lh-muted: #94a3b8;
+  --lh-border: #334155;
+  --lh-surface: #0f172a;
+  --lh-card: #1e293b;
+  --lh-primary-soft: #1e3a5f;
+}
+
+html {
+  font-size: 16px;
+}
+
+body.lh-body {
+  margin-bottom: 0;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--lh-surface);
+  color: var(--lh-ink);
+}
+
+.lh-main {
+  max-width: 1120px;
+}
+
+/* Nav */
+.lh-nav {
+  background: var(--lh-card) !important;
+  border-bottom: 1px solid var(--lh-border) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.lh-brand-text {
+  letter-spacing: -0.02em;
+}
+
+.lh-brand-logo {
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.navbar .nav-link {
+  font-weight: 500;
+  color: var(--lh-ink) !important;
+  padding: 0.5rem 0.85rem !important;
+  border-radius: 8px;
+}
+
+.navbar .nav-link:hover {
+  color: var(--lh-primary) !important;
+  background: var(--lh-primary-soft);
+}
+
+.navbar .nav-link.active {
+  color: var(--lh-primary) !important;
+}
+
+.lh-btn-pill {
+  border-radius: var(--lh-radius-pill) !important;
+  padding-left: 1.25rem !important;
+  padding-right: 1.25rem !important;
+  font-weight: 600;
+}
+
+.lh-btn-donate {
+  box-shadow: 0 2px 8px rgba(93, 139, 244, 0.35);
+}
+
+.lh-btn-donate:hover {
+  background: var(--lh-primary-hover) !important;
+  border-color: var(--lh-primary-hover) !important;
+}
+
+.lh-btn-ghost {
+  border: 1px solid var(--lh-border);
+  background: var(--lh-card);
+  color: var(--lh-ink);
+}
+
+.lh-theme-toggle {
+  color: var(--lh-muted) !important;
+  text-decoration: none !important;
+  padding: 0.35rem 0.5rem !important;
+  border-radius: 8px;
+}
+
+.lh-theme-toggle:hover {
+  background: var(--lh-primary-soft);
+  color: var(--lh-primary) !important;
+}
+
+/* Hero */
+.lh-hero {
+  padding: 2.5rem 0 3rem;
+}
+
+.lh-overline {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--lh-primary);
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.lh-hero-title {
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin-bottom: 1rem;
+}
+
+.lh-hero-title .lh-accent {
+  color: var(--lh-primary);
+}
+
+.lh-hero-lead {
+  max-width: 36rem;
+  margin-left: auto;
+  margin-right: auto;
+  color: var(--lh-muted);
+  font-size: 1.05rem;
+}
+
+/* Impact section */
+.lh-impact {
+  background: var(--lh-surface);
+  border-radius: var(--lh-radius);
+  padding: 2.5rem 1.5rem !important;
+  margin-top: 1rem;
+}
+
+.lh-section-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.lh-section-sub {
+  color: var(--lh-muted);
+  margin-bottom: 2rem;
+}
+
+/* Stat cards (landing) */
+.lh-stat-card {
+  background: var(--lh-card);
+  border-radius: var(--lh-radius);
+  border: 1px solid var(--lh-border);
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+  padding: 1.75rem 1.25rem;
+  text-align: center;
+  height: 100%;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.lh-stat-card:hover {
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.1);
+  transform: translateY(-2px);
+}
+
+.lh-stat-icon-wrap {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--lh-primary-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  color: var(--lh-primary);
+}
+
+.lh-stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.lh-stat-label {
+  font-size: 0.9rem;
+  color: var(--lh-muted);
+  margin-top: 0.25rem;
+}
+
+/* Dashboard KPI cards */
+.lh-dash-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.lh-dash-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.lh-dash-sub {
+  color: var(--lh-muted);
+  font-size: 0.95rem;
+}
+
+.lh-search-pill {
+  border-radius: var(--lh-radius-pill);
+  border: 1px solid var(--lh-border);
+  padding: 0.4rem 1rem;
+  background: var(--lh-card);
+  min-width: 200px;
+}
+
+.lh-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.lh-kpi-card {
+  border-radius: var(--lh-radius);
+  padding: 1.25rem;
+  border: 1px solid var(--lh-border);
+  background: var(--lh-card);
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+}
+
+.lh-kpi-card.lh-kpi-primary {
+  background: linear-gradient(135deg, var(--lh-primary) 0%, var(--lh-primary-hover) 100%);
+  color: #fff;
+  border: none;
+}
+
+.lh-kpi-card.lh-kpi-success {
+  background: linear-gradient(135deg, #3d9d72 0%, var(--lh-success) 100%);
+  color: #fff;
+  border: none;
+}
+
+.lh-kpi-card.lh-kpi-deep {
+  background: linear-gradient(135deg, #3b5998 0%, #2d4373 100%);
+  color: #fff;
+  border: none;
+}
+
+.lh-kpi-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.lh-kpi-meta {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.lh-kpi-icon {
+  opacity: 0.95;
+}
+
+/* Chart shells */
+.lh-chart-card {
+  border-radius: var(--lh-radius);
+  border: 1px solid var(--lh-border);
+  background: var(--lh-card);
+  padding: 1.25rem;
+  min-height: 280px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
+}
+
+.lh-chart-placeholder {
+  height: 200px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--lh-primary-soft) 0%, transparent 100%);
+  border: 1px dashed var(--lh-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lh-muted);
+  font-size: 0.85rem;
+}
+
+/* Footer */
+.lh-footer {
+  background: var(--lh-card);
+  border-top: 1px solid var(--lh-border);
+}
+
+/* Cookie banner (GDPR) */
+.lh-cookie-banner {
+  background: rgba(15, 23, 42, 0.96);
+  color: #f8fafc;
+  backdrop-filter: blur(6px);
+}
+
+.btn-primary {
+  --bs-btn-bg: var(--lh-primary);
+  --bs-btn-border-color: var(--lh-primary);
+  --bs-btn-hover-bg: var(--lh-primary-hover);
+  --bs-btn-hover-border-color: var(--lh-primary-hover);
+}
+
+.text-muted {
+  color: var(--lh-muted) !important;
+}

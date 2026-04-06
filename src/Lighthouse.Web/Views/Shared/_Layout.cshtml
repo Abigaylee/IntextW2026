@@ -1,0 +1,76 @@
+@{
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString();
+    var action = ViewContext.RouteData.Values["action"]?.ToString();
+    string NavClass(string ctrl, string act) =>
+        controller == ctrl && action == act ? "nav-link active" : "nav-link";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Lighthouse</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @await RenderSectionAsync("Head", required: false)
+</head>
+<body class="d-flex flex-column min-vh-100 lh-body">
+    <header class="lh-nav sticky-top">
+        <nav class="navbar navbar-expand-lg navbar-light container py-2">
+            <a class="navbar-brand d-flex align-items-center gap-2 lh-brand text-decoration-none" asp-controller="Home" asp-action="Index">
+                <img src="~/img/lighthouse-logo.png" alt="" width="40" height="40" class="lh-brand-logo" />
+                <span class="fw-bold lh-brand-text text-dark">Lighthouse</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav mx-lg-auto mb-2 mb-lg-0 align-items-lg-center">
+                    <li class="nav-item"><a class="@NavClass("Home", "Index")" asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="nav-item"><a class="@NavClass("Home", "Impact")" asp-controller="Home" asp-action="Impact">Impact</a></li>
+                    <li class="nav-item"><a class="@NavClass("Home", "About")" asp-controller="Home" asp-action="About">About</a></li>
+                    <li class="nav-item"><a class="@NavClass("Home", "Contact")" asp-controller="Home" asp-action="Contact">Contact</a></li>
+                    <li class="nav-item"><a class="@NavClass("Home", "Privacy")" asp-controller="Home" asp-action="Privacy">Privacy</a></li>
+                    @if (User.Identity?.IsAuthenticated == true)
+                    {
+                        if (User.IsInRole("Donor"))
+                        {
+                            <li class="nav-item"><a class="nav-link" asp-controller="Donor" asp-action="Index">Donor</a></li>
+                        }
+                        if (User.IsInRole("Admin"))
+                        {
+                            <li class="nav-item"><a class="nav-link" asp-controller="Admin" asp-action="Index">Admin</a></li>
+                        }
+                    }
+                </ul>
+                <div class="d-flex flex-wrap align-items-center gap-2 ms-lg-2">
+                    <button type="button" class="btn btn-link lh-theme-toggle" title="Toggle theme" aria-label="Toggle dark mode">&#9789;</button>
+                    <partial name="_LoginPartial" />
+                    <a class="btn btn-primary lh-btn-pill lh-btn-donate d-inline-flex align-items-center gap-2" asp-controller="Home" asp-action="Contact">
+                        <span aria-hidden="true">&#9829;</span> Donate
+                    </a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="flex-grow-1 container py-4 lh-main">
+        @RenderBody()
+    </main>
+
+    <footer class="lh-footer py-4 mt-auto small">
+        <div class="container d-flex flex-wrap justify-content-between align-items-center gap-2 text-secondary">
+            <span>&copy; @DateTime.UtcNow.Year Lighthouse Sanctuary</span>
+            <a asp-controller="Home" asp-action="Privacy" class="text-secondary">Privacy</a>
+        </div>
+    </footer>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
