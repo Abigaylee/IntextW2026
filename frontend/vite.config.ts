@@ -4,7 +4,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const webRootCss = path.resolve(__dirname, '../wwwroot/css')
+const webRootCss = path.resolve(__dirname, '../backend/Lighthouse.Web/wwwroot/css')
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -16,7 +16,7 @@ export default defineConfig({
   },
   base: '/app/',
   build: {
-    outDir: '../wwwroot/app',
+    outDir: '../backend/Lighthouse.Web/wwwroot/app',
     emptyOutDir: true,
     rollupOptions: {
       output: {

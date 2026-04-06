@@ -10,7 +10,7 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Load .env from repo root (two levels up from src/Lighthouse.Web) in Development
+// Load .env from repo root (two levels up from backend/Lighthouse.Web) in Development
 if (builder.Environment.IsDevelopment())
 {
     var envPath = Path.Combine(builder.Environment.ContentRootPath, "..", "..", ".env");
