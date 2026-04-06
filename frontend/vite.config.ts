@@ -16,7 +16,7 @@ export default defineConfig({
   },
   base: '/app/',
   build: {
-    outDir: '../backend/Lighthouse.Web/wwwroot/app',
+    outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
       output: {

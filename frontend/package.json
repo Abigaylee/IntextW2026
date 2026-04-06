@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "copy:backend": "rm -rf ../backend/Lighthouse.Web/wwwroot/app/* && mkdir -p ../backend/Lighthouse.Web/wwwroot/app && cp -R dist/* ../backend/Lighthouse.Web/wwwroot/app/",
+    "build:local": "npm run build && npm run copy:backend",
     "lint": "eslint .",
     "preview": "vite preview"
   },
