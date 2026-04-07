@@ -36,7 +36,7 @@ public class SmtpEmailCodeSender : IEmailCodeSender
         using var message = new MailMessage(from, toEmail)
         {
             Subject = "Your verification code",
-            Body = $"Your Light on a Hill verification code is: {code}\n\nThis code expires shortly. If you did not try to sign in, you can ignore this email."
+            Body = $"Your Light on a Hill verification code is: {code}\n\nThis code expires in 10 minutes. If you did not try to sign in, you can ignore this email."
         };
 
         using var client = new SmtpClient(host, port)

@@ -117,11 +117,13 @@ builder.Services.AddAntiforgery(options =>
     options.HeaderName = "X-XSRF-TOKEN";
 });
 
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<DonationAnalyticsService>();
 builder.Services.AddScoped<IDonorPredictionService, DonorPredictionService>();
 builder.Services.AddScoped<OkrMetricsService>();
 builder.Services.AddScoped<IEmailCodeSender, SmtpEmailCodeSender>();
+builder.Services.AddSingleton<IEmailTwoFactorCodeStore, InMemoryEmailTwoFactorCodeStore>();
 
 builder.Services
     .AddControllersWithViews()
