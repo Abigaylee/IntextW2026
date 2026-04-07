@@ -43,6 +43,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.HasPostgresEnum<DonationType>("donation_type");
         modelBuilder.HasPostgresEnum<ChannelSource>("channel_source");
         modelBuilder.HasPostgresEnum<ImpactUnit>("impact_unit");
+        modelBuilder.HasPostgresEnum<ProgramArea>("program_area");
 
         modelBuilder.Entity<ApplicationUser>(entity =>
         {
@@ -132,7 +133,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(a => a.AllocationId).HasColumnName("allocation_id");
             entity.Property(a => a.DonationId).HasColumnName("donation_id");
             entity.Property(a => a.SafehouseId).HasColumnName("safehouse_id");
-            entity.Property(a => a.ProgramArea).HasColumnName("program_area");
+            entity.Property(a => a.ProgramArea).HasColumnName("program_area").HasColumnType("program_area");
             entity.Property(a => a.AmountAllocated).HasColumnName("amount_allocated");
             entity.Property(a => a.AllocationDate).HasColumnName("allocation_date");
             entity.Property(a => a.AllocationNotes).HasColumnName("allocation_notes");

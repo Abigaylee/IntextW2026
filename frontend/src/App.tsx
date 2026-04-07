@@ -75,6 +75,9 @@ export default function App() {
             <a className="text-secondary" href="/privacy">
               Privacy
             </a>
+            <a className="text-secondary" href="/about">
+              About
+            </a>
           </div>
         </div>
       </footer>

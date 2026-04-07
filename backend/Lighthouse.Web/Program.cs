@@ -56,6 +56,7 @@ dataSourceBuilder.MapEnum<AcquisitionChannel>("acquisition_channel");
 dataSourceBuilder.MapEnum<DonationType>("donation_type");
 dataSourceBuilder.MapEnum<ChannelSource>("channel_source");
 dataSourceBuilder.MapEnum<ImpactUnit>("impact_unit");
+dataSourceBuilder.MapEnum<ProgramArea>("program_area");
 var dataSource = dataSourceBuilder.Build();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -69,6 +70,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         npgsqlOptions.MapEnum<DonationType>("donation_type");
         npgsqlOptions.MapEnum<ChannelSource>("channel_source");
         npgsqlOptions.MapEnum<ImpactUnit>("impact_unit");
+        npgsqlOptions.MapEnum<ProgramArea>("program_area");
     })
     // Existing schema tables are excluded from migrations in this app.
     // Suppress this warning so startup doesn't log a misleading stack trace.

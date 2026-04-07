@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { fetchJson } from '../api/client'
 import { ConfirmModal } from '../components/ConfirmModal'
 
@@ -26,7 +26,7 @@ type Allocation = {
   allocationId?: number
   donationId?: number
   safehouseId?: number
-  programArea?: string
+  programArea?: string | number
   amountAllocated?: number
 }
 
@@ -49,12 +49,35 @@ const donationTypeValueMap: Record<string, number> = {
   SocialMedia: 4,
 }
 
+const programAreaLabelMap: Record<number, string> = {
+  0: 'Education',
+  1: 'Wellbeing',
+  2: 'Operations',
+  3: 'Transport',
+  4: 'Maintenance',
+  5: 'Outreach',
+}
+
+const programAreaValueMap: Record<string, number> = {
+  Education: 0,
+  Wellbeing: 1,
+  Operations: 2,
+  Transport: 3,
+  Maintenance: 4,
+  Outreach: 5,
+}
+
 function donationTypeLabel(value: string | number | undefined) {
   if (typeof value === 'number') return donationTypeLabelMap[value] ?? `Type ${value}`
   if (!value) return '—'
   if (value === 'InKind') return 'In-kind'
   if (value === 'SocialMedia') return 'Social media'
   return value
+}
+
+function programAreaLabel(value: string | number | undefined) {
+  if (typeof value === 'number') return programAreaLabelMap[value] ?? `Area ${value}`
+  return value ?? ''
 }
 
 function formatContributionAmount(d: Donation) {
@@ -87,6 +110,7 @@ export function AdminDonorsContributions() {
   const [allocations, setAllocations] = useState<Allocation[]>([])
   const [supporterFilter, setSupporterFilter] = useState('')
   const [contributionFilter, setContributionFilter] = useState('')
+  const [contributionSearch, setContributionSearch] = useState('')
   const [safehouseFilter, setSafehouseFilter] = useState('')
   const [programAreaFilter, setProgramAreaFilter] = useState('')
   const [supporterForm, setSupporterForm] = useState(emptySupporter)
@@ -96,9 +120,13 @@ export function AdminDonorsContributions() {
   const [editingSupporterEmail, setEditingSupporterEmail] = useState('')
   const [editingDonationId, setEditingDonationId] = useState<number | null>(null)
   const [editingDonationAmount, setEditingDonationAmount] = useState('')
+  const [editingAllocationId, setEditingAllocationId] = useState<number | null>(null)
+  const [editingAllocationSafehouseId, setEditingAllocationSafehouseId] = useState('')
+  const [editingAllocationProgramArea, setEditingAllocationProgramArea] = useState('')
   const [viewMode, setViewMode] = useState<'supporters' | 'contributions'>('supporters')
   const [showSupporterModal, setShowSupporterModal] = useState(false)
   const [showDonationModal, setShowDonationModal] = useState(false)
+  const [expandedDonations, setExpandedDonations] = useState<Set<number>>(new Set())
   const [pendingDelete, setPendingDelete] = useState<{ kind: 'supporter' | 'donation'; id: number } | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -134,23 +162,29 @@ export function AdminDonorsContributions() {
     [supporterFilter, supporters],
   )
 
-  const filteredDonations = useMemo(
+  const allocationsByDonation = useMemo(() => {
+    const map = new Map<number, Allocation[]>()
+    allocations.forEach((a) => {
+      if (!a.donationId) return
+      const list = map.get(a.donationId) ?? []
+      list.push(a)
+      map.set(a.donationId, list)
+    })
+    return map
+  }, [allocations])
+
+  const safehouseOptions = useMemo(
     () =>
-      donations.filter((d) => {
-        if (!contributionFilter) return true
-        return donationTypeLabel(d.donationType) === donationTypeLabel(contributionFilter)
-      }),
-    [contributionFilter, donations],
+      Array.from(new Set(allocations.map((a) => String(a.safehouseId ?? '')).filter((v) => v)))
+        .sort((a, b) => Number(a) - Number(b)),
+    [allocations],
   )
 
-  const filteredAllocations = useMemo(
+  const programAreaOptions = useMemo(
     () =>
-      allocations.filter((a) => {
-        const safehouseOk = !safehouseFilter || String(a.safehouseId ?? '') === safehouseFilter
-        const programOk = !programAreaFilter || (a.programArea ?? '').toLowerCase().includes(programAreaFilter.trim().toLowerCase())
-        return safehouseOk && programOk
-      }),
-    [allocations, programAreaFilter, safehouseFilter],
+      Array.from(new Set(allocations.map((a) => programAreaLabel(a.programArea).trim()).filter((v) => v)))
+        .sort((a, b) => a.localeCompare(b)),
+    [allocations],
   )
 
   const supporterById = useMemo(() => {
@@ -183,6 +217,32 @@ export function AdminDonorsContributions() {
     const full = (s.displayName ?? `${s.firstName ?? ''} ${s.lastName ?? ''}`.trim()).trim()
     return full || `#${supporterId}`
   }
+
+  const filteredDonations = useMemo(
+    () =>
+      donations.filter((d) => {
+        const typeOk = !contributionFilter || donationTypeLabel(d.donationType) === donationTypeLabel(contributionFilter)
+
+        const relatedAllocations = d.donationId ? allocationsByDonation.get(d.donationId) ?? [] : []
+        const safehouseOk =
+          !safehouseFilter || relatedAllocations.some((a) => String(a.safehouseId ?? '') === safehouseFilter)
+        const programOk =
+          !programAreaFilter ||
+          relatedAllocations.some((a) => programAreaLabel(a.programArea).toLowerCase() === programAreaFilter.trim().toLowerCase())
+
+        const q = contributionSearch.trim().toLowerCase()
+        const amountText = String(d.estimatedValue ?? d.amount ?? '')
+        const donorText = supporterName(d.supporterId).toLowerCase()
+        const allocText = relatedAllocations
+          .map((a) => `${a.safehouseId ?? ''} ${programAreaLabel(a.programArea)}`.toLowerCase())
+          .join(' ')
+        const searchHay = `${d.donationId ?? ''} ${donorText} ${donationTypeLabel(d.donationType).toLowerCase()} ${amountText} ${d.createdAt ?? ''} ${allocText}`
+        const searchOk = !q || searchHay.includes(q)
+
+        return typeOk && safehouseOk && programOk && searchOk
+      }),
+    [allocationsByDonation, contributionFilter, contributionSearch, donations, programAreaFilter, safehouseFilter, supporterById],
+  )
 
   async function createSupporter() {
     try {
@@ -342,6 +402,62 @@ export function AdminDonorsContributions() {
     }
   }
 
+  function startAllocationEdit(a: Allocation) {
+    setEditingAllocationId(a.allocationId ?? null)
+    setEditingAllocationSafehouseId(a.safehouseId != null ? String(a.safehouseId) : '')
+    setEditingAllocationProgramArea(programAreaLabel(a.programArea))
+  }
+
+  function cancelAllocationEdit() {
+    setEditingAllocationId(null)
+    setEditingAllocationSafehouseId('')
+    setEditingAllocationProgramArea('')
+  }
+
+  async function saveAllocationEdit(allocationId: number | undefined) {
+    if (!allocationId) return
+    const existing = allocations.find((a) => a.allocationId === allocationId)
+    if (!existing) return
+
+    const parsedSafehouseId = editingAllocationSafehouseId.trim() ? Number(editingAllocationSafehouseId) : null
+    if (editingAllocationSafehouseId.trim() && (!Number.isFinite(parsedSafehouseId) || Number(parsedSafehouseId) <= 0)) {
+      setErr('Safehouse must be a valid positive number (or leave blank).')
+      return
+    }
+
+    try {
+      setBusy(true)
+      setErr(null)
+      await fetchJson(`/api/admin/data/donation_allocations/${allocationId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...existing,
+          safehouseId: parsedSafehouseId,
+          programArea: programAreaValueMap[editingAllocationProgramArea] ?? existing.programArea ?? 0,
+        }),
+      })
+      cancelAllocationEdit()
+      await load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to update allocation.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function toggleDonationExpanded(donationId: number | undefined) {
+    if (typeof donationId !== 'number') return
+    setExpandedDonations((prev) => {
+      const next = new Set(prev)
+      if (next.has(donationId)) {
+        next.delete(donationId)
+      } else {
+        next.add(donationId)
+      }
+      return next
+    })
+  }
+
   return (
     <div>
       <h1 className="h3 mb-2">Donors & Contributions</h1>
@@ -458,6 +574,14 @@ export function AdminDonorsContributions() {
           ) : (
             <>
               <div className="row g-2 mb-2">
+                <div className="col-md-4">
+                  <input
+                    className="form-control form-control-sm"
+                    placeholder="Search donations, donor, safehouse, program area"
+                    value={contributionSearch}
+                    onChange={(e) => setContributionSearch(e.target.value)}
+                  />
+                </div>
                 <div className="col-md-6">
                   <select className="form-select form-select-sm" value={contributionFilter} onChange={(e) => setContributionFilter(e.target.value)}>
                     <option value="">All contribution types</option>
@@ -468,102 +592,190 @@ export function AdminDonorsContributions() {
                     <option value="SocialMedia">Social media</option>
                   </select>
                 </div>
-                <div className="col-md-3">
-                  <input className="form-control form-control-sm" placeholder="Safehouse" value={safehouseFilter} onChange={(e) => setSafehouseFilter(e.target.value)} />
+                <div className="col-md-1">
+                  <select className="form-select form-select-sm" value={safehouseFilter} onChange={(e) => setSafehouseFilter(e.target.value)}>
+                    <option value="">Safehouse</option>
+                    {safehouseOptions.map((id) => (
+                      <option key={id} value={id}>
+                        {id}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div className="col-md-3">
-                  <input className="form-control form-control-sm" placeholder="Program area" value={programAreaFilter} onChange={(e) => setProgramAreaFilter(e.target.value)} />
+                <div className="col-md-1">
+                  <select className="form-select form-select-sm" value={programAreaFilter} onChange={(e) => setProgramAreaFilter(e.target.value)}>
+                    <option value="">Program area</option>
+                    {programAreaOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="table-responsive mb-2">
                 <table className="table table-sm">
-                  <thead><tr><th>Donation</th><th>Donor</th><th>Type</th><th>Amount</th><th>Created</th><th>Manage</th></tr></thead>
+                  <thead><tr><th>Donation</th><th>Donor</th><th>Type</th><th>Amount</th><th>Created</th><th>Allocations</th><th>Manage</th></tr></thead>
                   <tbody>
                     {filteredDonations.slice(0, 100).map((d) => (
-                      <tr key={d.donationId ?? `${d.supporterId}-${d.createdAt}`}>
-                        <td>{d.donationId ?? '—'}</td>
-                        <td>{supporterName(d.supporterId)}</td>
-                        <td>{donationTypeLabel(d.donationType)}</td>
-                        <td>
-                          {editingDonationId === d.donationId ? (
-                            <input
-                              className="form-control form-control-sm"
-                              style={{ maxWidth: 120 }}
-                              type="number"
-                              min={1}
-                              value={editingDonationAmount}
-                              onChange={(e) => setEditingDonationAmount(e.target.value)}
-                            />
-                          ) : (
-                            formatContributionAmount(d)
-                          )}
-                        </td>
-                        <td>{d.createdAt ? String(d.createdAt).slice(0, 10) : '—'}</td>
-                        <td>
-                          <div className="d-flex gap-1">
+                      <Fragment key={`donation-${d.donationId ?? `${d.supporterId}-${d.createdAt}`}`}>
+                        <tr key={d.donationId ?? `${d.supporterId}-${d.createdAt}`}>
+                          <td>{d.donationId ?? '—'}</td>
+                          <td>{supporterName(d.supporterId)}</td>
+                          <td>{donationTypeLabel(d.donationType)}</td>
+                          <td>
                             {editingDonationId === d.donationId ? (
-                              <>
-                                <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => saveDonationEdit(d.donationId)}>
-                                  Save
-                                </button>
-                                <button type="button" className="btn btn-outline-secondary btn-sm" disabled={busy} onClick={() => { setEditingDonationId(null); setEditingDonationAmount('') }}>
-                                  Cancel
-                                </button>
-                              </>
+                              <input
+                                className="form-control form-control-sm"
+                                style={{ maxWidth: 120 }}
+                                type="number"
+                                min={1}
+                                value={editingDonationAmount}
+                                onChange={(e) => setEditingDonationAmount(e.target.value)}
+                              />
                             ) : (
+                              formatContributionAmount(d)
+                            )}
+                          </td>
+                          <td>{d.createdAt ? String(d.createdAt).slice(0, 10) : '—'}</td>
+                          <td>
+                            {(() => {
+                              const donationAllocs = d.donationId ? allocationsByDonation.get(d.donationId) ?? [] : []
+                              const isExpanded = typeof d.donationId === 'number' && expandedDonations.has(d.donationId)
+                              return (
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-secondary btn-sm"
+                                  onClick={() => toggleDonationExpanded(d.donationId)}
+                                  disabled={!d.donationId || donationAllocs.length === 0}
+                                >
+                                  {donationAllocs.length === 0 ? 'None' : isExpanded ? `Hide (${donationAllocs.length})` : `View (${donationAllocs.length})`}
+                                </button>
+                              )
+                            })()}
+                          </td>
+                          <td>
+                            <div className="d-flex gap-1">
+                              {editingDonationId === d.donationId ? (
+                                <>
+                                  <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => saveDonationEdit(d.donationId)}>
+                                    Save
+                                  </button>
+                                  <button type="button" className="btn btn-outline-secondary btn-sm" disabled={busy} onClick={() => { setEditingDonationId(null); setEditingDonationAmount('') }}>
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-secondary btn-sm"
+                                  disabled={busy}
+                                  onClick={() => {
+                                    setEditingDonationId(d.donationId ?? null)
+                                    setEditingDonationAmount(String(d.estimatedValue ?? d.amount ?? ''))
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                className="btn btn-outline-secondary btn-sm"
+                                className="btn btn-outline-danger btn-sm"
                                 disabled={busy}
                                 onClick={() => {
-                                  setEditingDonationId(d.donationId ?? null)
-                                  setEditingDonationAmount(String(d.estimatedValue ?? d.amount ?? ''))
+                                  if (typeof d.donationId === 'number') {
+                                    setPendingDelete({ kind: 'donation', id: d.donationId })
+                                  }
                                 }}
                               >
-                                Edit
+                                Delete
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              className="btn btn-outline-danger btn-sm"
-                              disabled={busy}
-                              onClick={() => {
-                                if (typeof d.donationId === 'number') {
-                                  setPendingDelete({ kind: 'donation', id: d.donationId })
-                                }
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="small text-secondary mb-1">Allocation snapshot (safehouse/program mapping):</p>
-              <div className="table-responsive">
-                <table className="table table-sm mb-0">
-                  <thead><tr><th>Allocation</th><th>Donation</th><th>Donor</th><th>Type</th><th>Safehouse</th><th>Program area</th><th>Amount</th></tr></thead>
-                  <tbody>
-                    {filteredAllocations.slice(0, 80).map((a) => (
-                      <tr key={a.allocationId ?? `${a.donationId}-${a.safehouseId}`}>
-                        {(() => {
-                          const donation = donations.find((d) => d.donationId === a.donationId)
-                          return (
-                            <>
-                        <td>{a.allocationId ?? '—'}</td>
-                        <td>{a.donationId ?? '—'}</td>
-                        <td>{supporterName(donation?.supporterId)}</td>
-                        <td>{donationTypeLabel(donation?.donationType)}</td>
-                        <td>{a.safehouseId ?? '—'}</td>
-                        <td>{a.programArea ?? '—'}</td>
-                        <td>{formatAllocationAmount(a.amountAllocated, donation?.donationType)}</td>
-                            </>
-                          )
-                        })()}
-                      </tr>
+                            </div>
+                          </td>
+                        </tr>
+                        {typeof d.donationId === 'number' && expandedDonations.has(d.donationId) ? (
+                          <tr>
+                            <td colSpan={7} className="bg-light-subtle">
+                              <div className="small fw-semibold mb-1">Allocation details</div>
+                              <div className="table-responsive">
+                                <table className="table table-sm mb-0">
+                                  <thead>
+                                    <tr><th>Allocation</th><th>Safehouse</th><th>Program area</th><th>Amount</th><th>Manage</th></tr>
+                                  </thead>
+                                  <tbody>
+                                    {(allocationsByDonation.get(d.donationId) ?? []).map((a) => (
+                                      <tr key={a.allocationId ?? `${a.donationId}-${a.safehouseId}-${a.programArea}`}>
+                                        <td>{a.allocationId ?? '—'}</td>
+                                        <td>
+                                          {editingAllocationId === a.allocationId ? (
+                                            <input
+                                              className="form-control form-control-sm"
+                                              style={{ maxWidth: 120 }}
+                                              type="number"
+                                              min={1}
+                                              value={editingAllocationSafehouseId}
+                                              onChange={(e) => setEditingAllocationSafehouseId(e.target.value)}
+                                            />
+                                          ) : (
+                                            a.safehouseId ?? '—'
+                                          )}
+                                        </td>
+                                        <td>
+                                          {editingAllocationId === a.allocationId ? (
+                                            <select className="form-select form-select-sm" value={editingAllocationProgramArea} onChange={(e) => setEditingAllocationProgramArea(e.target.value)}>
+                                              {Object.values(programAreaLabelMap).map((label) => (
+                                                <option key={label} value={label}>
+                                                  {label}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          ) : (
+                                            programAreaLabel(a.programArea) || '—'
+                                          )}
+                                        </td>
+                                        <td>{formatAllocationAmount(a.amountAllocated, d.donationType)}</td>
+                                        <td>
+                                          <div className="d-flex gap-1">
+                                            {editingAllocationId === a.allocationId ? (
+                                              <>
+                                                <button
+                                                  type="button"
+                                                  className="btn btn-primary btn-sm"
+                                                  disabled={busy}
+                                                  onClick={() => saveAllocationEdit(a.allocationId)}
+                                                >
+                                                  Save
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className="btn btn-outline-secondary btn-sm"
+                                                  disabled={busy}
+                                                  onClick={cancelAllocationEdit}
+                                                >
+                                                  Cancel
+                                                </button>
+                                              </>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                className="btn btn-outline-secondary btn-sm"
+                                                disabled={busy || !a.allocationId}
+                                                onClick={() => startAllocationEdit(a)}
+                                              >
+                                                Edit
+                                              </button>
+                                            )}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>

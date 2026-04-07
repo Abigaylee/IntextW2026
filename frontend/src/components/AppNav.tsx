@@ -13,6 +13,8 @@ function navLinkClass(active: boolean) {
 export function AppNav() {
   const [me, setMe] = useState<AuthMe>({ isAuthenticated: false, roles: [] })
   const navigate = useNavigate()
+  const isAdmin = me.isAuthenticated && me.roles.includes('Admin')
+  const isDonor = me.isAuthenticated && me.roles.includes('Donor')
 
   function applyTheme(theme: 'light' | 'dark') {
     document.documentElement.setAttribute('data-bs-theme', theme)
@@ -118,24 +120,26 @@ export function AppNav() {
                     Impact
                   </NavLink>
                 </li>
-                <li className="nav-item">
-                  <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/about">
-                    About
-                  </NavLink>
-                </li>
+                {!isAdmin ? (
+                  <li className="nav-item">
+                    <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/about">
+                      About
+                    </NavLink>
+                  </li>
+                ) : null}
                 <li className="nav-item">
                   <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/contact">
                     Contact
                   </NavLink>
                 </li>
-                {me.isAuthenticated && me.roles.includes('Donor') ? (
+                {isDonor && !isAdmin ? (
                   <li className="nav-item">
                     <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/Donor">
                       Dashboard
                     </NavLink>
                   </li>
                 ) : null}
-                {me.isAuthenticated && me.roles.includes('Admin') ? (
+                {isAdmin ? (
                   <>
                     <li className="nav-item">
                       <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/Admin">

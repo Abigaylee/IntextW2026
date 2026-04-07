@@ -61,6 +61,16 @@ public enum ImpactUnit
     [PgName("campaigns")] campaigns
 }
 
+public enum ProgramArea
+{
+    [PgName("Education")] Education,
+    [PgName("Wellbeing")] Wellbeing,
+    [PgName("Operations")] Operations,
+    [PgName("Transport")] Transport,
+    [PgName("Maintenance")] Maintenance,
+    [PgName("Outreach")] Outreach
+}
+
 public enum PhRegion
 {
     [PgName("NCR")] NCR,
