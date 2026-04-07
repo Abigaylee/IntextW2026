@@ -11,11 +11,13 @@ export function Login() {
   const [error, setError] = useState('')
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false)
   const [twoFactorCode, setTwoFactorCode] = useState('')
+  const [challengeId, setChallengeId] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   type LoginResponse = {
     isAuthenticated?: boolean
     requiresTwoFactor?: boolean
+    challengeId?: string
   }
 
   async function onSubmit(e: FormEvent) {
@@ -30,6 +32,7 @@ export function Login() {
       })
       if (result?.requiresTwoFactor) {
         setRequiresTwoFactor(true)
+        setChallengeId(result.challengeId ?? '')
         setSubmitting(false)
         return
       }
@@ -49,7 +52,7 @@ export function Login() {
     try {
       await fetchJson('/api/auth/login-2fa', {
         method: 'POST',
-        body: JSON.stringify({ code: twoFactorCode.trim(), rememberMachine: true }),
+        body: JSON.stringify({ code: twoFactorCode.trim(), challengeId, rememberMachine: true }),
       })
       const returnUrl = searchParams.get('returnUrl') || '/'
       navigate(returnUrl, { replace: true })
@@ -63,7 +66,10 @@ export function Login() {
   async function resendTwoFactorCode() {
     setError('')
     try {
-      await fetchJson('/api/auth/2fa/send-code', { method: 'POST' })
+      await fetchJson('/api/auth/2fa/send-code', {
+        method: 'POST',
+        body: JSON.stringify({ challengeId }),
+      })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Unable to resend code.')
     }
@@ -124,6 +130,7 @@ export function Login() {
                   onClick={() => {
                     setRequiresTwoFactor(false)
                     setTwoFactorCode('')
+                    setChallengeId('')
                     setError('')
                   }}
                   disabled={submitting}

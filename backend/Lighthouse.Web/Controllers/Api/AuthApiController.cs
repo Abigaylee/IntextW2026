@@ -36,7 +36,7 @@ public class AuthApiController : ControllerBase
     }
 
     public record LoginRequest(string Email, string Password);
-    public record TwoFactorLoginRequest(string Code, bool RememberMachine = false);
+    public record TwoFactorLoginRequest(string Code, string ChallengeId, bool RememberMachine = false);
     public record RegisterRequest(string Email, string Password, string ConfirmPassword, int? SupporterId);
     public record TwoFactorEnableRequest(string? Code = null);
 
@@ -68,13 +68,13 @@ public class AuthApiController : ControllerBase
         {
             try
             {
-                await SendTwoFactorCodeForCurrentChallengeAsync();
+                var challengeId = await SendTwoFactorCodeAsync(user);
+                return Ok(new { requiresTwoFactor = true, challengeId });
             }
             catch (InvalidOperationException ex)
             {
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new { error = ex.Message });
             }
-            return Ok(new { requiresTwoFactor = true });
         }
 
         if (!result.Succeeded)
@@ -91,12 +91,16 @@ public class AuthApiController : ControllerBase
         var code = req.Code?.Replace(" ", string.Empty).Replace("-", string.Empty);
         if (string.IsNullOrWhiteSpace(code))
             return BadRequest(new { error = "Authentication code is required." });
+        if (string.IsNullOrWhiteSpace(req.ChallengeId))
+            return BadRequest(new { error = "Two-factor challenge not found. Please sign in again." });
 
-        var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
+        if (!_emailTwoFactorCodeStore.TryGetUserId(req.ChallengeId, out var userId))
+            return Unauthorized(new { error = "Two-factor challenge not found. Please sign in again." });
+        var user = await _userManager.FindByIdAsync(userId);
         if (user is null)
             return Unauthorized(new { error = "Two-factor challenge not found. Please sign in again." });
 
-        if (!_emailTwoFactorCodeStore.ValidateCode(user.Id, code))
+        if (!_emailTwoFactorCodeStore.ValidateCode(req.ChallengeId, code))
             return Unauthorized(new { error = "Invalid authentication code." });
 
         await _signInManager.SignInAsync(user, isPersistent: true);
@@ -224,11 +228,20 @@ public class AuthApiController : ControllerBase
 
     [HttpPost("2fa/send-code")]
     [AllowAnonymous]
-    public async Task<IActionResult> SendTwoFactorCode()
+    public async Task<IActionResult> SendTwoFactorCode([FromBody] TwoFactorResendRequest req)
     {
         try
         {
-            await SendTwoFactorCodeForCurrentChallengeAsync();
+            if (string.IsNullOrWhiteSpace(req.ChallengeId))
+                return BadRequest(new { error = "Two-factor challenge not found. Please sign in again." });
+            if (!_emailTwoFactorCodeStore.TryGetUserId(req.ChallengeId, out var userId))
+                return Unauthorized(new { error = "Two-factor challenge not found. Please sign in again." });
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user is null)
+                return Unauthorized(new { error = "Two-factor challenge not found. Please sign in again." });
+
+            await SendTwoFactorCodeAsync(user, req.ChallengeId);
         }
         catch (InvalidOperationException ex)
         {
@@ -237,13 +250,16 @@ public class AuthApiController : ControllerBase
         return NoContent();
     }
 
-    private async Task SendTwoFactorCodeForCurrentChallengeAsync()
+    public record TwoFactorResendRequest(string ChallengeId);
+
+    private async Task<string> SendTwoFactorCodeAsync(ApplicationUser user, string? challengeId = null)
     {
-        var challengeUser = await _signInManager.GetTwoFactorAuthenticationUserAsync();
-        if (challengeUser is null || string.IsNullOrWhiteSpace(challengeUser.Email))
+        if (string.IsNullOrWhiteSpace(user.Email))
             throw new InvalidOperationException("Two-factor challenge is not in progress.");
 
-        var code = _emailTwoFactorCodeStore.CreateCode(challengeUser.Id);
-        await _emailCodeSender.SendTwoFactorCodeAsync(challengeUser.Email, code);
+        var id = challengeId ?? _emailTwoFactorCodeStore.CreateChallenge(user.Id);
+        var code = _emailTwoFactorCodeStore.CreateCode(id);
+        await _emailCodeSender.SendTwoFactorCodeAsync(user.Email, code);
+        return id;
     }
 }
