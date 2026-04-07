@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 const CONSENT_KEY = 'cookie_consent'
+const THEME_COOKIE_KEY = 'lh_theme'
 const CONSENT_VALUE_ACCEPTED = 'accepted'
 const CONSENT_VALUE_REJECTED = 'rejected'
 
@@ -50,6 +51,7 @@ export function CookieBanner() {
             className="btn btn-outline-light btn-sm"
             onClick={() => {
               document.cookie = `${CONSENT_KEY}=${CONSENT_VALUE_REJECTED}; path=/; max-age=31536000; SameSite=Lax`
+              document.cookie = `${THEME_COOKIE_KEY}=; path=/; max-age=0; SameSite=Lax`
               localStorage.removeItem('lh-theme')
               localStorage.setItem('cookie_preferences_enabled', 'false')
               setVisible(false)
