@@ -1,5 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
+import { fetchJson, type AuthMe } from '../api/client'
 
 const THEME_KEY = 'lh-theme'
 
@@ -8,6 +9,8 @@ function navLinkClass(active: boolean) {
 }
 
 export function AppNav() {
+  const [me, setMe] = useState<AuthMe>({ isAuthenticated: false, roles: [] })
+
   function applyTheme(theme: 'light' | 'dark') {
     document.documentElement.setAttribute('data-bs-theme', theme)
   }
@@ -20,6 +23,12 @@ export function AppNav() {
     }
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     applyTheme(prefersDark ? 'dark' : 'light')
+  }, [])
+
+  useEffect(() => {
+    fetchJson<AuthMe>('/api/auth/me')
+      .then(setMe)
+      .catch(() => setMe({ isAuthenticated: false, roles: [] }))
   }, [])
 
   function toggleTheme() {
@@ -78,6 +87,20 @@ export function AppNav() {
                     Privacy
                   </NavLink>
                 </li>
+                {me.isAuthenticated && me.roles.includes('Donor') ? (
+                  <li className="nav-item">
+                    <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/Donor">
+                      Dashboard
+                    </NavLink>
+                  </li>
+                ) : null}
+                {me.isAuthenticated && me.roles.includes('Admin') ? (
+                  <li className="nav-item">
+                    <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/Admin">
+                      Dashboard
+                    </NavLink>
+                  </li>
+                ) : null}
               </ul>
               <div className="d-flex flex-wrap align-items-center gap-2 ms-lg-2">
                 <button
@@ -89,6 +112,11 @@ export function AppNav() {
                 >
                   &#9789;
                 </button>
+                {!me.isAuthenticated ? (
+                  <a className="btn btn-sm lh-btn-ghost lh-btn-pill" href="/Account/Login">
+                    Login
+                  </a>
+                ) : null}
                 <Link className="btn btn-primary lh-btn-pill lh-btn-donate d-inline-flex align-items-center gap-2" to="/donate">
                   <span aria-hidden="true">&#9829;</span> Donate
                 </Link>
