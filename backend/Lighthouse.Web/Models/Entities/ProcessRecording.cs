@@ -15,15 +15,12 @@ public class ProcessRecording
     [MaxLength(20)]
     public string SocialWorker { get; set; } = string.Empty;
 
-    [MaxLength(20)]
-    public string SessionType { get; set; } = string.Empty;
+    public SessionType SessionType { get; set; }
 
     public int? SessionDurationMinutes { get; set; }
 
-    [MaxLength(20)]
-    public string? EmotionalStateObserved { get; set; }
-    [MaxLength(20)]
-    public string? EmotionalStateEnd { get; set; }
+    public EmotionalState? EmotionalStateObserved { get; set; }
+    public EmotionalState? EmotionalStateEnd { get; set; }
 
     public string? SessionNarrative { get; set; }
     public string? InterventionsApplied { get; set; }

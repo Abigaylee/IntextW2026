@@ -44,6 +44,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.HasPostgresEnum<ChannelSource>("channel_source");
         modelBuilder.HasPostgresEnum<ImpactUnit>("impact_unit");
         modelBuilder.HasPostgresEnum<ProgramArea>("program_area");
+        modelBuilder.HasPostgresEnum<EmotionalState>("emotional_state");
+        modelBuilder.HasPostgresEnum<SessionType>("session_type");
 
         modelBuilder.Entity<ApplicationUser>(entity =>
         {
@@ -334,10 +336,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(p => p.ResidentId).HasColumnName("resident_id");
             entity.Property(p => p.SessionDate).HasColumnName("session_date");
             entity.Property(p => p.SocialWorker).HasColumnName("social_worker");
-            entity.Property(p => p.SessionType).HasColumnName("session_type");
+            entity.Property(p => p.SessionType).HasColumnName("session_type").HasColumnType("session_type");
             entity.Property(p => p.SessionDurationMinutes).HasColumnName("session_duration_minutes");
-            entity.Property(p => p.EmotionalStateObserved).HasColumnName("emotional_state_observed");
-            entity.Property(p => p.EmotionalStateEnd).HasColumnName("emotional_state_end");
+            entity.Property(p => p.EmotionalStateObserved).HasColumnName("emotional_state_observed").HasColumnType("emotional_state");
+            entity.Property(p => p.EmotionalStateEnd).HasColumnName("emotional_state_end").HasColumnType("emotional_state");
             entity.Property(p => p.SessionNarrative).HasColumnName("session_narrative");
             entity.Property(p => p.InterventionsApplied).HasColumnName("interventions_applied");
             entity.Property(p => p.FollowUpActions).HasColumnName("follow_up_actions");

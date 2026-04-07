@@ -71,6 +71,24 @@ public enum ProgramArea
     [PgName("Outreach")] Outreach
 }
 
+public enum EmotionalState
+{
+    [PgName("Angry")] Angry,
+    [PgName("Anxious")] Anxious,
+    [PgName("Calm")] Calm,
+    [PgName("Distressed")] Distressed,
+    [PgName("Happy")] Happy,
+    [PgName("Hopeful")] Hopeful,
+    [PgName("Sad")] Sad,
+    [PgName("Withdrawn")] Withdrawn
+}
+
+public enum SessionType
+{
+    [PgName("Individual")] Individual,
+    [PgName("Group")] Group
+}
+
 public enum PhRegion
 {
     [PgName("NCR")] NCR,
