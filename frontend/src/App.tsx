@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppNav } from './components/AppNav'
+import { AppFooter } from './components/AppFooter'
 import { CookieBanner } from './components/CookieBanner'
 import { RequireRole } from './components/RequireRole'
 import { RequireAuth } from './components/RequireAuth'
@@ -59,28 +60,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      <footer className="lh-footer py-4 mt-auto small">
-        <div className="container d-flex flex-wrap justify-content-between align-items-center gap-2 text-secondary">
-          <span>&copy; {new Date().getUTCFullYear()} Light on a Hill Foundation</span>
-          <div className="d-flex flex-wrap align-items-center gap-2">
-            <a className="lh-social-link" href="#" aria-label="Facebook (placeholder)">
-              Facebook
-            </a>
-            <a className="lh-social-link" href="#" aria-label="Instagram (placeholder)">
-              Instagram
-            </a>
-            <a className="lh-social-link" href="#" aria-label="YouTube (placeholder)">
-              YouTube
-            </a>
-            <a className="text-secondary" href="/privacy">
-              Privacy
-            </a>
-            <a className="text-secondary" href="/about">
-              About
-            </a>
-          </div>
-        </div>
-      </footer>
+      <AppFooter />
     </BrowserRouter>
   )
 }

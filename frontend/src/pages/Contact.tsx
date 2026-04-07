@@ -36,9 +36,6 @@ export function Contact() {
             </button>
           </div>
         </form>
-        <p className="text-secondary small mt-3 mb-0">
-          For production, enable antiforgery validation on this endpoint and pass a token from the server or <code>/api/antiforgery/token</code>.
-        </p>
       </div>
       <div className="col-lg-5">
         <div className="card border-0 shadow-sm h-100">

@@ -127,11 +127,13 @@ export function AppNav() {
                     </NavLink>
                   </li>
                 ) : null}
-                <li className="nav-item">
-                  <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/contact">
-                    Contact
-                  </NavLink>
-                </li>
+                {!isAdmin ? (
+                  <li className="nav-item">
+                    <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/contact">
+                      Contact
+                    </NavLink>
+                  </li>
+                ) : null}
                 {isDonor && !isAdmin ? (
                   <li className="nav-item">
                     <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/Donor">
