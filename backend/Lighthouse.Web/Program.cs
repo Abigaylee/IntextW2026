@@ -6,12 +6,10 @@ using Lighthouse.Web.Models.Identity;
 using Lighthouse.Web.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Serilog;
 
-var contentRoot = Directory.GetCurrentDirectory();
-var nestedApp = Path.Combine(contentRoot, "Lighthouse.Web");
-if (Directory.Exists(Path.Combine(nestedApp, "wwwroot")))
-    contentRoot = Path.GetFullPath(nestedApp);
+var contentRoot = ResolveContentRoot();
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 {
@@ -22,8 +20,8 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 // Load .env from repo root (two levels up from backend/Lighthouse.Web) in Development
 if (builder.Environment.IsDevelopment())
 {
-    var envPath = Path.Combine(builder.Environment.ContentRootPath, "..", "..", ".env");
-    if (File.Exists(envPath))
+    var envPath = FindNearestFile(builder.Environment.ContentRootPath, ".env");
+    if (envPath is not null)
         Env.Load(envPath);
 }
 
@@ -53,14 +51,24 @@ builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>(options =>
     {
         options.Password.RequiredLength = 12;
-        options.Password.RequireDigit = true;
-        options.Password.RequireLowercase = true;
-        options.Password.RequireUppercase = true;
-        options.Password.RequireNonAlphanumeric = true;
+        options.Password.RequireDigit = false;
+        options.Password.RequireLowercase = false;
+        options.Password.RequireUppercase = false;
+        options.Password.RequireNonAlphanumeric = false;
         options.User.RequireUniqueEmail = true;
     })
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
+
+// Enforce password policy globally in case other identity configuration paths run.
+builder.Services.Configure<IdentityOptions>(options =>
+{
+    options.Password.RequiredLength = 12;
+    options.Password.RequireDigit = false;
+    options.Password.RequireLowercase = false;
+    options.Password.RequireUppercase = false;
+    options.Password.RequireNonAlphanumeric = false;
+});
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -85,7 +93,16 @@ builder.Services.AddScoped<DonationAnalyticsService>();
 builder.Services.AddScoped<IDonorPredictionService, DonorPredictionService>();
 builder.Services.AddScoped<OkrMetricsService>();
 
-builder.Services.AddControllersWithViews();
+builder.Services
+    .AddControllersWithViews()
+    .AddRazorOptions(options =>
+    {
+        // Support both content roots:
+        // - backend/Lighthouse.Web (standard /Views/*)
+        // - backend (files live under /Lighthouse.Web/Views/*)
+        options.ViewLocationFormats.Add("/Lighthouse.Web/Views/{1}/{0}.cshtml");
+        options.ViewLocationFormats.Add("/Lighthouse.Web/Views/Shared/{0}.cshtml");
+    });
 
 builder.Services.AddCors(options =>
 {
@@ -137,6 +154,13 @@ app.UseSerilogRequestLogging();
 app.UseMiddleware<ContentSecurityPolicyMiddleware>();
 
 app.UseStaticFiles();
+foreach (var fallbackRoot in GetFallbackStaticRoots(app.Environment.ContentRootPath))
+{
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(fallbackRoot)
+    });
+}
 
 app.UseRouting();
 
@@ -156,3 +180,56 @@ app.MapControllerRoute(
     .WithStaticAssets();
 
 await app.RunAsync();
+
+static string ResolveContentRoot()
+{
+    var cwd = Directory.GetCurrentDirectory();
+    var candidates = new[]
+    {
+        cwd,
+        Path.Combine(cwd, "Lighthouse.Web"),
+        Path.Combine(cwd, "backend", "Lighthouse.Web"),
+        Path.GetFullPath(Path.Combine(cwd, "..", "Lighthouse.Web")),
+        Path.GetFullPath(Path.Combine(cwd, "..", "backend", "Lighthouse.Web")),
+    };
+
+    foreach (var candidate in candidates)
+    {
+        if (Directory.Exists(Path.Combine(candidate, "Views"))
+            && Directory.Exists(Path.Combine(candidate, "wwwroot")))
+        {
+            return Path.GetFullPath(candidate);
+        }
+    }
+
+    return cwd;
+}
+
+static string? FindNearestFile(string startDirectory, string fileName)
+{
+    var dir = new DirectoryInfo(startDirectory);
+    while (dir is not null)
+    {
+        var candidate = Path.Combine(dir.FullName, fileName);
+        if (File.Exists(candidate))
+            return candidate;
+        dir = dir.Parent;
+    }
+    return null;
+}
+
+static IEnumerable<string> GetFallbackStaticRoots(string contentRootPath)
+{
+    var candidates = new[]
+    {
+        Path.Combine(contentRootPath, "Lighthouse.Web", "wwwroot"),
+        Path.GetFullPath(Path.Combine(contentRootPath, "..", "Lighthouse.Web", "wwwroot")),
+        Path.GetFullPath(Path.Combine(contentRootPath, "backend", "Lighthouse.Web", "wwwroot")),
+    };
+
+    foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+    {
+        if (Directory.Exists(candidate))
+            yield return candidate;
+    }
+}

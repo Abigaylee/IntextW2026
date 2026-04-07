@@ -13,6 +13,8 @@ export function DonorDashboard() {
   const [me, setMe] = useState<AuthMe | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [monthlyAmount, setMonthlyAmount] = useState(25)
+  const [recurringEnabled, setRecurringEnabled] = useState(false)
 
   useEffect(() => {
     fetchJson<AuthMe>('/api/auth/me')
@@ -88,6 +90,44 @@ export function DonorDashboard() {
               <div className="lh-kpi-meta mt-1">See Insights tab</div>
             </div>
             <span className="fs-4">&#128200;</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="row g-3 mt-1">
+        <div className="col-lg-7">
+          <div className="lh-chart-card h-100">
+            <div className="fw-semibold mb-2">Set up recurring monthly donation</div>
+            <p className="text-secondary small mb-3">Choose a monthly amount and save your recurring preference.</p>
+            <div className="row g-3 align-items-end">
+              <div className="col-sm-6">
+                <label className="form-label small text-secondary mb-1" htmlFor="monthlyAmount">
+                  Monthly amount (PHP)
+                </label>
+                <input
+                  id="monthlyAmount"
+                  className="form-control"
+                  type="number"
+                  min={1}
+                  value={monthlyAmount}
+                  onChange={(e) => setMonthlyAmount(Number(e.target.value || 0))}
+                />
+              </div>
+              <div className="col-sm-6">
+                <button type="button" className="btn btn-primary lh-btn-pill w-100" onClick={() => setRecurringEnabled(true)}>
+                  Save monthly donation
+                </button>
+              </div>
+            </div>
+            {recurringEnabled ? <div className="alert alert-success mt-3 mb-0 py-2">Monthly giving set to PHP {monthlyAmount.toLocaleString()}.</div> : null}
+          </div>
+        </div>
+        <div className="col-lg-5">
+          <div className="lh-chart-card h-100">
+            <div className="fw-semibold mb-2">Your impact summary</div>
+            <p className="small text-secondary mb-1">Estimated total given: <strong>PHP {summary ? summary.totalEstimated.toFixed(0) : '—'}</strong></p>
+            <p className="small text-secondary mb-1">Donations made: <strong>{summary?.count ?? '—'}</strong></p>
+            <p className="small text-secondary mb-0">Last gift date: <strong>{summary?.lastDonationDate ?? '—'}</strong></p>
           </div>
         </div>
       </div>

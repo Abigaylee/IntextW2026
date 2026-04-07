@@ -10,11 +10,16 @@ public class AccountController : Controller
 {
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ILogger<AccountController> _logger;
 
-    public AccountController(SignInManager<ApplicationUser> signInManager, UserManager<ApplicationUser> userManager)
+    public AccountController(
+        SignInManager<ApplicationUser> signInManager,
+        UserManager<ApplicationUser> userManager,
+        ILogger<AccountController> logger)
     {
         _signInManager = signInManager;
         _userManager = userManager;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -37,7 +42,18 @@ public class AccountController : Controller
             return View();
         }
 
-        var user = await _userManager.FindByEmailAsync(email);
+        ApplicationUser? user;
+        try
+        {
+            user = await _userManager.FindByEmailAsync(email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Login failed while querying user store.");
+            ModelState.AddModelError(string.Empty, "Login is temporarily unavailable. Please verify database settings and try again.");
+            return View();
+        }
+
         if (user == null)
         {
             ModelState.AddModelError(string.Empty, "Invalid login attempt.");
@@ -46,7 +62,18 @@ public class AccountController : Controller
 
         var result = await _signInManager.PasswordSignInAsync(user, password, isPersistent: true, lockoutOnFailure: true);
         if (result.Succeeded)
-            return LocalRedirect(string.IsNullOrEmpty(returnUrl) ? Url.Content("~/") : returnUrl!);
+        {
+            if (!string.IsNullOrEmpty(returnUrl))
+                return LocalRedirect(returnUrl!);
+
+            if (await _userManager.IsInRoleAsync(user, AppRoles.Admin))
+                return RedirectToAction("Index", "Admin");
+
+            if (await _userManager.IsInRoleAsync(user, AppRoles.Donor))
+                return RedirectToAction("Index", "Donor");
+
+            return RedirectToAction("Index", "Home");
+        }
 
         ModelState.AddModelError(string.Empty, "Invalid login attempt.");
         return View();
@@ -97,7 +124,18 @@ public class AccountController : Controller
             SupporterId = sid
         };
 
-        var result = await _userManager.CreateAsync(user, password);
+        IdentityResult result;
+        try
+        {
+            result = await _userManager.CreateAsync(user, password);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Register failed while creating user.");
+            ModelState.AddModelError(string.Empty, "Registration is temporarily unavailable. Please verify database settings and try again.");
+            return View();
+        }
+
         if (!result.Succeeded)
         {
             foreach (var err in result.Errors)

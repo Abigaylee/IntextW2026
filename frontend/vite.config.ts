@@ -37,6 +37,10 @@ export default defineConfig({
       '/Account': { target: 'http://localhost:5182' },
       '/Donor': { target: 'http://localhost:5182' },
       '/Admin': { target: 'http://localhost:5182' },
+      '/lib': { target: 'http://localhost:5182' },
+      '/css': { target: 'http://localhost:5182' },
+      '/js': { target: 'http://localhost:5182' },
+      '/img': { target: 'http://localhost:5182' },
     },
   },
 })

@@ -1,23 +1,24 @@
 /* Lighthouse UI — aligned with UI_Examples mockups (landing + dashboards) */
 
 :root {
-  --lh-primary: #5d8bf4;
-  --lh-primary-hover: #4a6cf7;
-  --lh-primary-soft: #e8f0fe;
-  --lh-success: #52a477;
-  --lh-success-soft: #e8f5ef;
+  /* Thailand flag-inspired palette: red, white, blue */
+  --lh-primary: #1f2f6b;
+  --lh-primary-hover: #16224f;
+  --lh-primary-soft: #e9edf8;
+  --lh-success: #b31942;
+  --lh-success-soft: #fae9ee;
   --lh-ink: #0f172a;
   --lh-muted: #64748b;
-  --lh-border: #e2e8f0;
-  --lh-surface: #f1f5f9;
+  --lh-border: #d9deee;
+  --lh-surface: #f8f9fc;
   --lh-card: #ffffff;
-  --lh-ribbon-bg: #e8eef5;
+  --lh-ribbon-bg: #eef1fa;
   --lh-ribbon-edge: 28px;
   --lh-ribbon-content-pad: 20px;
   --lh-radius: 14px;
   --lh-radius-pill: 999px;
-  --bs-primary: #5d8bf4;
-  --bs-primary-rgb: 93, 139, 244;
+  --bs-primary: #1f2f6b;
+  --bs-primary-rgb: 31, 47, 107;
 }
 
 [data-bs-theme="dark"] {
@@ -26,8 +27,8 @@
   --lh-border: #334155;
   --lh-surface: #0f172a;
   --lh-card: #1e293b;
-  --lh-primary-soft: #1e3a5f;
-  --lh-ribbon-bg: #1a2332;
+  --lh-primary-soft: #1a274f;
+  --lh-ribbon-bg: #15203d;
 }
 
 html {
@@ -427,6 +428,25 @@ body.lh-body {
   justify-content: center;
   color: var(--lh-muted);
   font-size: 0.85rem;
+}
+
+/* Reusable media placeholders */
+.lh-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  border-radius: 12px;
+  border: 1px dashed var(--lh-border);
+  background: linear-gradient(135deg, var(--lh-primary-soft) 0%, rgba(255, 255, 255, 0) 100%);
+  color: var(--lh-muted);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1rem;
+}
+
+.lh-photo-lg {
+  min-height: 260px;
 }
 
 /* Footer */

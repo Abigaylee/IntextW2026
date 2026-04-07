@@ -5,14 +5,14 @@ export function Contact() {
   const sent = useMemo(() => root?.dataset.contactSent === 'true', [root?.dataset.contactSent])
 
   return (
-    <div className="row">
-      <div className="col-lg-8">
-        <h1 className="h3 mb-3">Contact</h1>
+    <div className="row g-4">
+      <div className="col-lg-7">
+        <h1 className="h3 mb-3 lh-section-title">Contact</h1>
         {sent ? (
           <div className="alert alert-success">Thank you — your message was received.</div>
         ) : null}
         <form method="post" action="/contact" className="card border-0 shadow-sm">
-          <div className="card-body">
+          <div className="card-body p-4">
             <div className="mb-3">
               <label className="form-label" htmlFor="name">
                 Name
@@ -39,6 +39,17 @@ export function Contact() {
         <p className="text-secondary small mt-3 mb-0">
           For production, enable antiforgery validation on this endpoint and pass a token from the server or <code>/api/antiforgery/token</code>.
         </p>
+      </div>
+      <div className="col-lg-5">
+        <div className="card border-0 shadow-sm h-100">
+          <div className="card-body p-4">
+            <h2 className="h5 mb-3">Visit or Call</h2>
+            <p className="text-secondary mb-2"><strong>Email:</strong> support@lightonahill.org</p>
+            <p className="text-secondary mb-2"><strong>Phone:</strong> +63 (000) 123-4567</p>
+            <p className="text-secondary mb-3"><strong>Hours:</strong> Mon-Fri, 8:00 AM - 5:00 PM</p>
+            <div className="lh-photo-placeholder lh-photo-lg">Office/location photo placeholder</div>
+          </div>
+        </div>
       </div>
     </div>
   )
