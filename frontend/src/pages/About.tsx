@@ -14,7 +14,9 @@ export function About() {
               </p>
             </div>
             <div className="col-lg-5">
-              <div className="lh-photo-placeholder lh-photo-lg">Mission photo placeholder</div>
+              <div className="lh-photo-placeholder lh-photo-lg">
+                <img className="lh-photo-img" src="/img/Love and Belonging.jpg" alt="Children forming a circle to represent love and belonging" />
+              </div>
             </div>
           </div>
         </div>
