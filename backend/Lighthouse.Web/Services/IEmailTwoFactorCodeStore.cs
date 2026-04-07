@@ -2,6 +2,8 @@ namespace Lighthouse.Web.Services;
 
 public interface IEmailTwoFactorCodeStore
 {
-    string CreateCode(string userId);
-    bool ValidateCode(string userId, string code);
+    string CreateChallenge(string userId);
+    bool TryGetUserId(string challengeId, out string userId);
+    string CreateCode(string challengeId);
+    bool ValidateCode(string challengeId, string code);
 }
