@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { fetchJson, type AuthMe } from '../api/client'
 
 const THEME_KEY = 'lh-theme'
+const THEME_COOKIE_KEY = 'lh_theme'
 const COOKIE_PREF_KEY = 'cookie_preferences_enabled'
 
 function navLinkClass(active: boolean) {
@@ -17,6 +18,18 @@ export function AppNav() {
     document.documentElement.setAttribute('data-bs-theme', theme)
   }
 
+  function getCookieValue(name: string): string | null {
+    const value = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(`${name}=`))
+      ?.split('=')[1]
+    return value ? decodeURIComponent(value) : null
+  }
+
+  function setThemeCookie(theme: 'light' | 'dark') {
+    document.cookie = `${THEME_COOKIE_KEY}=${encodeURIComponent(theme)}; path=/; max-age=31536000; SameSite=Lax`
+  }
+
   useEffect(() => {
     const canStorePrefs = localStorage.getItem(COOKIE_PREF_KEY) !== 'false'
     if (!canStorePrefs) {
@@ -24,9 +37,16 @@ export function AppNav() {
       applyTheme(prefersDark ? 'dark' : 'light')
       return
     }
+    const cookieTheme = getCookieValue(THEME_COOKIE_KEY)
+    if (cookieTheme === 'light' || cookieTheme === 'dark') {
+      applyTheme(cookieTheme)
+      localStorage.setItem(THEME_KEY, cookieTheme)
+      return
+    }
     const stored = localStorage.getItem(THEME_KEY)
     if (stored === 'light' || stored === 'dark') {
       applyTheme(stored)
+      setThemeCookie(stored)
       return
     }
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -60,6 +80,7 @@ export function AppNav() {
     const current = (localStorage.getItem(THEME_KEY) as 'light' | 'dark' | null) ?? 'light'
     const next = current === 'dark' ? 'light' : 'dark'
     localStorage.setItem(THEME_KEY, next)
+    setThemeCookie(next)
     applyTheme(next)
   }
 
