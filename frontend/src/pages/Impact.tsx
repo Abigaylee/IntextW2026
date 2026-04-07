@@ -30,7 +30,9 @@ export function Impact() {
           <div className="card border-0 shadow-sm h-100">
             <div className="card-body p-4">
               <h2 className="h4 mb-3">Program Highlights</h2>
-              <div className="lh-photo-placeholder mb-3">Impact gallery placeholder</div>
+              <div className="lh-photo-placeholder mb-3">
+                <img className="lh-photo-img" src="/img/Thailand Kids Peace.jpeg" alt="Children in Thailand gathered peacefully" />
+              </div>
               <ul className="mb-0 text-secondary">
                 <li>Expanded safehouse capacity in underserved regions.</li>
                 <li>Increased school reintegration rates through targeted tutoring.</li>
@@ -43,7 +45,9 @@ export function Impact() {
           <div className="card border-0 shadow-sm h-100">
             <div className="card-body p-4">
               <h2 className="h4 mb-3">Milestones Timeline</h2>
-              <div className="lh-photo-placeholder mb-3">Timeline graphic placeholder</div>
+              <div className="lh-photo-placeholder mb-3">
+                <img className="lh-photo-img" src="/img/Psychological Needs.jpg" alt="Children jumping in a field representing psychological wellbeing growth" />
+              </div>
               <p className="text-secondary mb-0">Add photos, campaign moments, and year-over-year metrics here to tell a stronger story.</p>
             </div>
           </div>

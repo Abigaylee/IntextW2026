@@ -47,7 +47,9 @@ export function Contact() {
             <p className="text-secondary mb-2"><strong>Email:</strong> support@lightonahill.org</p>
             <p className="text-secondary mb-2"><strong>Phone:</strong> +63 (000) 123-4567</p>
             <p className="text-secondary mb-3"><strong>Hours:</strong> Mon-Fri, 8:00 AM - 5:00 PM</p>
-            <div className="lh-photo-placeholder lh-photo-lg">Office/location photo placeholder</div>
+            <div className="lh-photo-placeholder lh-photo-lg">
+              <img className="lh-photo-img" src="/img/Thailand Scooter.webp" alt="Thailand street scene with scooter near the office location" />
+            </div>
           </div>
         </div>
       </div>

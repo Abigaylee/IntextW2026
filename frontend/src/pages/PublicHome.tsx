@@ -24,14 +24,14 @@ export function PublicHome() {
         </div>
       </section>
 
-      <section className="row g-3 align-items-center">
+      <section className="row g-3 align-items-stretch">
         <div className="col-lg-6">
-          <div className="lh-photo-placeholder lh-photo-lg">
-            <span>Hero photo placeholder (community outreach image)</span>
+          <div className="lh-photo-placeholder lh-photo-lg lh-photo-hero-focus">
+            <img className="lh-photo-img" src="/img/PinkPantsArmsUpByOcean-e1741391204308.jpg" alt="Community members celebrating by the ocean" />
           </div>
         </div>
         <div className="col-lg-6">
-          <div className="card border-0 shadow-sm h-100">
+          <div className="card border-0 shadow-sm h-100 lh-home-support-card">
             <div className="card-body p-3 p-lg-4">
               <h2 className="h4 lh-section-title mb-3">Why Your Support Matters</h2>
               <p className="text-secondary mb-3">
@@ -79,7 +79,9 @@ export function PublicHome() {
         <div className="col-md-4">
           <div className="card border-0 shadow-sm h-100">
             <div className="card-body">
-              <div className="lh-photo-placeholder mb-3">Program photo placeholder</div>
+              <div className="lh-photo-placeholder mb-3">
+                <img className="lh-photo-img" src="/img/SunsetArmsUp.jpg" alt="Sunset outreach moment with arms raised" />
+              </div>
               <h3 className="h5 mb-2">Shelter & Safety</h3>
               <p className="text-secondary mb-0">Safe housing with immediate protection, counseling, and case management support.</p>
             </div>
@@ -88,7 +90,9 @@ export function PublicHome() {
         <div className="col-md-4">
           <div className="card border-0 shadow-sm h-100">
             <div className="card-body">
-              <div className="lh-photo-placeholder mb-3">Education photo placeholder</div>
+              <div className="lh-photo-placeholder mb-3">
+                <img className="lh-photo-img" src="/img/Spiritual Needs.jpg" alt="Children in a circle activity session" />
+              </div>
               <h3 className="h5 mb-2">Education Access</h3>
               <p className="text-secondary mb-0">Tutoring, school placement support, and scholarships for long-term independence.</p>
             </div>
@@ -97,7 +101,9 @@ export function PublicHome() {
         <div className="col-md-4">
           <div className="card border-0 shadow-sm h-100">
             <div className="card-body">
-              <div className="lh-photo-placeholder mb-3">Community photo placeholder</div>
+              <div className="lh-photo-placeholder mb-3">
+                <img className="lh-photo-img" src="/img/Hands_Circle.jpg" alt="Hands joined in a circle representing community support" />
+              </div>
               <h3 className="h5 mb-2">Community Reintegration</h3>
               <p className="text-secondary mb-0">Skills training and mentorship that help survivors rebuild stable, empowered lives.</p>
             </div>

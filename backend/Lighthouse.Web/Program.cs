@@ -249,6 +249,9 @@ static IEnumerable<string> GetFallbackStaticRoots(string contentRootPath)
         Path.Combine(contentRootPath, "Lighthouse.Web", "wwwroot"),
         Path.GetFullPath(Path.Combine(contentRootPath, "..", "Lighthouse.Web", "wwwroot")),
         Path.GetFullPath(Path.Combine(contentRootPath, "backend", "Lighthouse.Web", "wwwroot")),
+        Path.GetFullPath(Path.Combine(contentRootPath, "..", "..", "frontend", "public")),
+        Path.GetFullPath(Path.Combine(contentRootPath, "..", "frontend", "public")),
+        Path.GetFullPath(Path.Combine(contentRootPath, "frontend", "public")),
     };
 
     foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
