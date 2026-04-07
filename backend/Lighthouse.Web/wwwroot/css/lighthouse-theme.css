@@ -420,6 +420,139 @@ body.lh-body {
   text-decoration: underline;
 }
 
+.lh-impact-page-hero {
+  padding-top: 2.25rem !important;
+  padding-bottom: 1.75rem !important;
+}
+
+.lh-impact-chip {
+  background: color-mix(in srgb, var(--lh-primary-soft) 60%, #fff);
+  color: var(--lh-primary);
+  border: 1px solid color-mix(in srgb, var(--lh-primary) 22%, var(--lh-border));
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.lh-impact-page-pillars .lh-impact-item-title {
+  font-size: clamp(1.35rem, 1.8vw, 1.7rem);
+}
+
+.lh-impact-evidence {
+  color: var(--lh-primary);
+  font-weight: 700;
+  font-size: 0.92rem;
+  margin-bottom: 0;
+}
+
+.lh-impact-journey {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.lh-impact-step {
+  border: 1px solid var(--lh-border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lh-primary-soft) 45%, #fff) 0%, #fff 100%);
+  border-radius: 12px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.lh-impact-step strong {
+  font-size: 0.92rem;
+  color: var(--lh-primary);
+}
+
+.lh-impact-step span {
+  font-size: 0.82rem;
+  color: var(--lh-muted);
+}
+
+.lh-impact-trend-block {
+  border: 1px solid var(--lh-border);
+  border-radius: 12px;
+  padding: 0.65rem 0.75rem;
+  background: var(--lh-card);
+}
+
+.lh-impact-trend-bar {
+  margin-top: 0.55rem;
+  width: 100%;
+  height: 8px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--lh-primary-soft) 55%, #fff);
+  overflow: hidden;
+}
+
+.lh-impact-trend-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--lh-primary) 0%, #3b5998 100%);
+}
+
+.lh-impact-mini-chart {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.lh-impact-mini-col {
+  text-align: center;
+  color: var(--lh-muted);
+}
+
+.lh-impact-mini-bar-wrap {
+  height: 120px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--lh-primary-soft) 45%, #fff);
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  padding: 6px;
+}
+
+.lh-impact-mini-bar {
+  width: 100%;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #3b5998 0%, var(--lh-primary) 100%);
+}
+
+.lh-impact-timeline {
+  margin: 0 0 0.9rem;
+  padding-left: 1.05rem;
+  color: var(--lh-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.lh-impact-timeline li strong {
+  color: var(--lh-primary);
+}
+
+.lh-impact-method {
+  padding-top: 1.1rem !important;
+  padding-bottom: 1.1rem !important;
+}
+
+@media (max-width: 991.98px) {
+  .lh-impact-journey {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 575.98px) {
+  .lh-impact-journey {
+    grid-template-columns: 1fr;
+  }
+}
+
 .lh-section-title {
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -693,25 +826,6 @@ body.lh-body {
   background: var(--lh-card);
   border-top: 1px solid var(--lh-border);
   box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.04);
-}
-
-.lh-social-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.3rem 0.65rem;
-  border-radius: 999px;
-  border: 1px solid var(--lh-border);
-  background: var(--lh-card);
-  color: var(--lh-muted);
-  text-decoration: none;
-  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
-}
-
-.lh-social-link:hover {
-  color: var(--lh-primary);
-  border-color: color-mix(in srgb, var(--lh-primary) 40%, var(--lh-border));
-  background: var(--lh-primary-soft);
 }
 
 /* Cookie banner (GDPR) */

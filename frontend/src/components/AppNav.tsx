@@ -107,11 +107,6 @@ export function AppNav() {
                     Contact
                   </NavLink>
                 </li>
-                <li className="nav-item">
-                  <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/privacy">
-                    Privacy
-                  </NavLink>
-                </li>
                 {me.isAuthenticated && me.roles.includes('Donor') ? (
                   <li className="nav-item">
                     <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/Donor">
