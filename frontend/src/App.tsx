@@ -15,6 +15,8 @@ import { DonorInsights } from './pages/DonorInsights'
 import { Privacy } from './pages/Privacy'
 import { PublicHome } from './pages/PublicHome'
 import { Impact } from './pages/Impact'
+import { Login } from './pages/Login'
+import { Register } from './pages/Register'
 import './App.css'
 
 export default function App() {
@@ -29,6 +31,8 @@ export default function App() {
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/donate" element={<Donate />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/Donor" element={<DonorDashboard />} />
           <Route path="/Donor/History" element={<DonorHistory />} />

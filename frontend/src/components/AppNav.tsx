@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { fetchJson, toApiUrl, type AuthMe } from '../api/client'
+import { fetchJson, type AuthMe } from '../api/client'
 
 const THEME_KEY = 'lh-theme'
 
@@ -10,7 +10,6 @@ function navLinkClass(active: boolean) {
 
 export function AppNav() {
   const [me, setMe] = useState<AuthMe>({ isAuthenticated: false, roles: [] })
-  const loginUrl = toApiUrl('/Account/Login')
 
   function applyTheme(theme: 'light' | 'dark') {
     document.documentElement.setAttribute('data-bs-theme', theme)
@@ -31,6 +30,16 @@ export function AppNav() {
       .then(setMe)
       .catch(() => setMe({ isAuthenticated: false, roles: [] }))
   }, [])
+
+  async function logout() {
+    try {
+      await fetchJson<void>('/api/auth/logout', { method: 'POST' })
+      setMe({ isAuthenticated: false, roles: [] })
+    } catch {
+      // If logout fails, force refresh auth state anyway.
+      setMe({ isAuthenticated: false, roles: [] })
+    }
+  }
 
   function toggleTheme() {
     const current = (localStorage.getItem(THEME_KEY) as 'light' | 'dark' | null) ?? 'light'
@@ -114,10 +123,19 @@ export function AppNav() {
                   &#9789;
                 </button>
                 {!me.isAuthenticated ? (
-                  <a className="btn btn-sm lh-btn-ghost lh-btn-pill" href={loginUrl}>
-                    Login
-                  </a>
-                ) : null}
+                  <>
+                    <Link className="btn btn-sm lh-btn-ghost lh-btn-pill" to="/login">
+                      Login
+                    </Link>
+                    <Link className="btn btn-sm lh-btn-ghost lh-btn-pill" to="/register">
+                      Register
+                    </Link>
+                  </>
+                ) : (
+                  <button type="button" className="btn btn-sm lh-btn-ghost lh-btn-pill" onClick={logout}>
+                    Logout
+                  </button>
+                )}
                 <Link className="btn btn-primary lh-btn-pill lh-btn-donate d-inline-flex align-items-center gap-2" to="/donate">
                   <span aria-hidden="true">&#9829;</span> Donate
                 </Link>
