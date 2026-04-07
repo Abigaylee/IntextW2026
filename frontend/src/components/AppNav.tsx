@@ -1,10 +1,34 @@
+import { useEffect } from 'react'
 import { Link, NavLink } from 'react-router-dom'
+
+const THEME_KEY = 'lh-theme'
 
 function navLinkClass(active: boolean) {
   return active ? 'nav-link active' : 'nav-link'
 }
 
 export function AppNav() {
+  function applyTheme(theme: 'light' | 'dark') {
+    document.documentElement.setAttribute('data-bs-theme', theme)
+  }
+
+  useEffect(() => {
+    const stored = localStorage.getItem(THEME_KEY)
+    if (stored === 'light' || stored === 'dark') {
+      applyTheme(stored)
+      return
+    }
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    applyTheme(prefersDark ? 'dark' : 'light')
+  }, [])
+
+  function toggleTheme() {
+    const current = (localStorage.getItem(THEME_KEY) as 'light' | 'dark' | null) ?? 'light'
+    const next = current === 'dark' ? 'light' : 'dark'
+    localStorage.setItem(THEME_KEY, next)
+    applyTheme(next)
+  }
+
   return (
     <header className="lh-nav sticky-top">
       <nav className="navbar navbar-expand-lg navbar-light lh-navbar-shell w-100">
@@ -56,10 +80,16 @@ export function AppNav() {
                 </li>
               </ul>
               <div className="d-flex flex-wrap align-items-center gap-2 ms-lg-2">
-                <button type="button" className="btn btn-link lh-theme-toggle" title="Toggle theme" aria-label="Toggle dark mode">
+                <button
+                  type="button"
+                  className="btn btn-link lh-theme-toggle"
+                  title="Toggle theme"
+                  aria-label="Toggle dark mode"
+                  onClick={toggleTheme}
+                >
                   &#9789;
                 </button>
-                <Link className="btn btn-primary lh-btn-pill lh-btn-donate d-inline-flex align-items-center gap-2" to="/contact">
+                <Link className="btn btn-primary lh-btn-pill lh-btn-donate d-inline-flex align-items-center gap-2" to="/donate">
                   <span aria-hidden="true">&#9829;</span> Donate
                 </Link>
               </div>
