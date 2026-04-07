@@ -19,17 +19,20 @@ public class AuthApiController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ApplicationDbContext _db;
     private readonly IEmailCodeSender _emailCodeSender;
+    private readonly IEmailTwoFactorCodeStore _emailTwoFactorCodeStore;
 
     public AuthApiController(
         SignInManager<ApplicationUser> signInManager,
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext db,
-        IEmailCodeSender emailCodeSender)
+        IEmailCodeSender emailCodeSender,
+        IEmailTwoFactorCodeStore emailTwoFactorCodeStore)
     {
         _signInManager = signInManager;
         _userManager = userManager;
         _db = db;
         _emailCodeSender = emailCodeSender;
+        _emailTwoFactorCodeStore = emailTwoFactorCodeStore;
     }
 
     public record LoginRequest(string Email, string Password);
@@ -89,15 +92,16 @@ public class AuthApiController : ControllerBase
         if (string.IsNullOrWhiteSpace(code))
             return BadRequest(new { error = "Authentication code is required." });
 
-        var result = await _signInManager.TwoFactorSignInAsync(TokenOptions.DefaultEmailProvider, code, isPersistent: true, rememberClient: req.RememberMachine);
-        if (!result.Succeeded)
+        var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
+        if (user is null)
+            return Unauthorized(new { error = "Two-factor challenge not found. Please sign in again." });
+
+        if (!_emailTwoFactorCodeStore.ValidateCode(user.Id, code))
             return Unauthorized(new { error = "Invalid authentication code." });
 
-        var user = await _signInManager.UserManager.GetUserAsync(User);
-        if (user is null)
-            user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
-        if (user is null)
-            return Ok(new { isAuthenticated = true, requiresTwoFactor = false, roles = Array.Empty<string>() });
+        await _signInManager.SignInAsync(user, isPersistent: true);
+        if (req.RememberMachine)
+            await _signInManager.RememberTwoFactorClientAsync(user);
 
         var roles = await _userManager.GetRolesAsync(user);
         return Ok(new { isAuthenticated = true, requiresTwoFactor = false, name = user.Email, roles });
@@ -239,7 +243,7 @@ public class AuthApiController : ControllerBase
         if (challengeUser is null || string.IsNullOrWhiteSpace(challengeUser.Email))
             throw new InvalidOperationException("Two-factor challenge is not in progress.");
 
-        var code = await _userManager.GenerateTwoFactorTokenAsync(challengeUser, TokenOptions.DefaultEmailProvider);
+        var code = _emailTwoFactorCodeStore.CreateCode(challengeUser.Id);
         await _emailCodeSender.SendTwoFactorCodeAsync(challengeUser.Email, code);
     }
 }
