@@ -1,4 +1,5 @@
 using Lighthouse.Web.Data;
+using Lighthouse.Web.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lighthouse.Web.Services;
@@ -14,7 +15,7 @@ public class OkrMetricsService
 
     public async Task<OkrSnapshotDto> GetSnapshotAsync(CancellationToken cancellationToken = default)
     {
-        var supporterCount = await _db.Supporters.AsNoTracking().CountAsync(s => s.Status == "Active", cancellationToken);
+        var supporterCount = await _db.Supporters.AsNoTracking().CountAsync(s => s.Status == SupporterStatus.Active, cancellationToken);
         var donationRows = await _db.Donations.AsNoTracking().ToListAsync(cancellationToken);
         var total = donationRows.Sum(d => d.Amount ?? d.EstimatedValue ?? 0);
 

@@ -6,8 +6,7 @@ public class Supporter
 {
     public int SupporterId { get; set; }
 
-    [MaxLength(40)]
-    public string SupporterType { get; set; } = string.Empty;
+    public SupporterType SupporterType { get; set; } = SupporterType.MonetaryDonor;
 
     [MaxLength(150)]
     public string DisplayName { get; set; } = string.Empty;
@@ -21,11 +20,9 @@ public class Supporter
     [MaxLength(75)]
     public string? LastName { get; set; }
 
-    [MaxLength(30)]
-    public string RelationshipType { get; set; } = string.Empty;
+    public RelationshipType RelationshipType { get; set; } = RelationshipType.Local;
 
-    [MaxLength(20)]
-    public string? Region { get; set; }
+    public PhRegion? Region { get; set; }
 
     [MaxLength(50)]
     public string Country { get; set; } = "Philippines";
@@ -36,15 +33,13 @@ public class Supporter
     [MaxLength(30)]
     public string? Phone { get; set; }
 
-    [MaxLength(20)]
-    public string Status { get; set; } = "Active";
+    public SupporterStatus Status { get; set; } = SupporterStatus.Active;
 
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateOnly? FirstDonationDate { get; set; }
 
-    [MaxLength(30)]
-    public string? AcquisitionChannel { get; set; }
+    public AcquisitionChannel? AcquisitionChannel { get; set; }
 
     public ICollection<Donation> Donations { get; set; } = new List<Donation>();
 }

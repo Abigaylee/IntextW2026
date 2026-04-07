@@ -2,11 +2,13 @@ using DotNetEnv;
 using Lighthouse.Web.Authorization;
 using Lighthouse.Web.Data;
 using Lighthouse.Web.Middleware;
+using Lighthouse.Web.Models.Entities;
 using Lighthouse.Web.Models.Identity;
 using Lighthouse.Web.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using Npgsql;
 using Serilog;
 
 var contentRoot = ResolveContentRoot();
@@ -44,8 +46,29 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
     ?? "Host=127.0.0.1;Port=5432;Database=postgres;Username=postgres;Password=postgres";
 
+var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+dataSourceBuilder.MapEnum<SupporterType>("supporter_type");
+dataSourceBuilder.MapEnum<RelationshipType>("relationship_type");
+dataSourceBuilder.MapEnum<PhRegion>("ph_region");
+dataSourceBuilder.MapEnum<SupporterStatus>("supporter_status");
+dataSourceBuilder.MapEnum<AcquisitionChannel>("acquisition_channel");
+dataSourceBuilder.MapEnum<DonationType>("donation_type");
+dataSourceBuilder.MapEnum<ChannelSource>("channel_source");
+dataSourceBuilder.MapEnum<ImpactUnit>("impact_unit");
+var dataSource = dataSourceBuilder.Build();
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseNpgsql(dataSource, npgsqlOptions =>
+    {
+        npgsqlOptions.MapEnum<SupporterType>("supporter_type");
+        npgsqlOptions.MapEnum<RelationshipType>("relationship_type");
+        npgsqlOptions.MapEnum<PhRegion>("ph_region");
+        npgsqlOptions.MapEnum<SupporterStatus>("supporter_status");
+        npgsqlOptions.MapEnum<AcquisitionChannel>("acquisition_channel");
+        npgsqlOptions.MapEnum<DonationType>("donation_type");
+        npgsqlOptions.MapEnum<ChannelSource>("channel_source");
+        npgsqlOptions.MapEnum<ImpactUnit>("impact_unit");
+    }));
 
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>(options =>

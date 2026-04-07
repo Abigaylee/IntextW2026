@@ -35,6 +35,15 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.HasPostgresEnum<SupporterType>("supporter_type");
+        modelBuilder.HasPostgresEnum<RelationshipType>("relationship_type");
+        modelBuilder.HasPostgresEnum<PhRegion>("ph_region");
+        modelBuilder.HasPostgresEnum<SupporterStatus>("supporter_status");
+        modelBuilder.HasPostgresEnum<AcquisitionChannel>("acquisition_channel");
+        modelBuilder.HasPostgresEnum<DonationType>("donation_type");
+        modelBuilder.HasPostgresEnum<ChannelSource>("channel_source");
+        modelBuilder.HasPostgresEnum<ImpactUnit>("impact_unit");
+
         modelBuilder.Entity<ApplicationUser>(entity =>
         {
             entity.HasOne(u => u.Supporter)
@@ -75,14 +84,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
             entity.Property(d => d.DonationId).HasColumnName("donation_id");
             entity.Property(d => d.SupporterId).HasColumnName("supporter_id");
-            entity.Property(d => d.DonationType).HasColumnName("donation_type");
+            entity.Property(d => d.DonationType).HasColumnName("donation_type").HasColumnType("donation_type");
             entity.Property(d => d.DonationDate).HasColumnName("donation_date");
             entity.Property(d => d.IsRecurring).HasColumnName("is_recurring");
             entity.Property(d => d.CampaignName).HasColumnName("campaign_name");
-            entity.Property(d => d.ChannelSource).HasColumnName("channel_source");
+            entity.Property(d => d.ChannelSource).HasColumnName("channel_source").HasColumnType("channel_source");
             entity.Property(d => d.CurrencyCode).HasColumnName("currency_code");
+            entity.Property(d => d.Amount).HasColumnName("amount");
             entity.Property(d => d.EstimatedValue).HasColumnName("estimated_value");
-            entity.Property(d => d.ImpactUnit).HasColumnName("impact_unit");
+            entity.Property(d => d.ImpactUnit).HasColumnName("impact_unit").HasColumnType("impact_unit");
+            entity.Property(d => d.Notes).HasColumnName("notes");
             entity.Property(d => d.ReferralPostId).HasColumnName("referral_post_id");
             entity.Property(d => d.CreatedAt).HasColumnName("created_at");
         });
@@ -90,15 +101,20 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<Supporter>(entity =>
         {
             entity.Property(s => s.SupporterId).HasColumnName("supporter_id");
-            entity.Property(s => s.SupporterType).HasColumnName("supporter_type");
+            entity.Property(s => s.SupporterType).HasColumnName("supporter_type").HasColumnType("supporter_type");
             entity.Property(s => s.DisplayName).HasColumnName("display_name");
             entity.Property(s => s.OrganizationName).HasColumnName("organization_name");
             entity.Property(s => s.FirstName).HasColumnName("first_name");
             entity.Property(s => s.LastName).HasColumnName("last_name");
-            entity.Property(s => s.RelationshipType).HasColumnName("relationship_type");
+            entity.Property(s => s.RelationshipType).HasColumnName("relationship_type").HasColumnType("relationship_type");
+            entity.Property(s => s.Region).HasColumnName("region").HasColumnType("ph_region");
+            entity.Property(s => s.Country).HasColumnName("country");
+            entity.Property(s => s.Email).HasColumnName("email");
+            entity.Property(s => s.Phone).HasColumnName("phone");
+            entity.Property(s => s.Status).HasColumnName("status").HasColumnType("supporter_status");
             entity.Property(s => s.CreatedAt).HasColumnName("created_at");
             entity.Property(s => s.FirstDonationDate).HasColumnName("first_donation_date");
-            entity.Property(s => s.AcquisitionChannel).HasColumnName("acquisition_channel");
+            entity.Property(s => s.AcquisitionChannel).HasColumnName("acquisition_channel").HasColumnType("acquisition_channel");
         });
 
         modelBuilder.Entity<Safehouse>(entity =>

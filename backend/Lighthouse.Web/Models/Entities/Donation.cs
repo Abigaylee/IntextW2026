@@ -10,8 +10,7 @@ public class Donation
     public int SupporterId { get; set; }
     public Supporter Supporter { get; set; } = null!;
 
-    [MaxLength(30)]
-    public string DonationType { get; set; } = string.Empty;
+    public DonationType DonationType { get; set; } = DonationType.Monetary;
 
     public DateOnly DonationDate { get; set; }
 
@@ -20,8 +19,7 @@ public class Donation
     [MaxLength(150)]
     public string? CampaignName { get; set; }
 
-    [MaxLength(30)]
-    public string? ChannelSource { get; set; }
+    public ChannelSource? ChannelSource { get; set; }
 
     [MaxLength(3)]
     public string? CurrencyCode { get; set; }
@@ -32,8 +30,7 @@ public class Donation
     [Column(TypeName = "numeric(12,2)")]
     public decimal? EstimatedValue { get; set; }
 
-    [MaxLength(20)]
-    public string? ImpactUnit { get; set; }
+    public ImpactUnit? ImpactUnit { get; set; }
 
     public string? Notes { get; set; }
 
