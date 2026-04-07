@@ -15,7 +15,7 @@ export function PublicHome() {
           We provide safe shelter, education, and long-term support to survivors of abuse and trafficking — helping them reclaim their independence and build a brighter future.
         </p>
         <div className="d-flex flex-wrap justify-content-center gap-2 mt-4">
-          <Link className="btn btn-primary lh-btn-pill lh-btn-donate px-4 d-inline-flex align-items-center gap-2" to="/contact">
+          <Link className="btn btn-primary lh-btn-pill lh-btn-donate px-4 d-inline-flex align-items-center gap-2" to="/donate">
             <span aria-hidden="true">&#9829;</span> Donate now
           </Link>
           <Link className="btn lh-btn-ghost lh-btn-pill px-4 d-inline-flex align-items-center gap-2" to="/impact">

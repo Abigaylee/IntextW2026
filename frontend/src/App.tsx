@@ -8,6 +8,7 @@ import { AdminCrud } from './pages/AdminCrud'
 import { AdminDashboard } from './pages/AdminDashboard'
 import { AdminOkr } from './pages/AdminOkr'
 import { Contact } from './pages/Contact'
+import { Donate } from './pages/Donate'
 import { DonorDashboard } from './pages/DonorDashboard'
 import { DonorHistory } from './pages/DonorHistory'
 import { DonorInsights } from './pages/DonorInsights'
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/impact" element={<Impact />} />
           <Route path="/about" element={<About />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/donate" element={<Donate />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/Donor" element={<DonorDashboard />} />
           <Route path="/Donor/History" element={<DonorHistory />} />
