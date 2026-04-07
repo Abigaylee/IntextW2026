@@ -26,18 +26,6 @@ export function AdminDashboard() {
           <h1 className="lh-dash-title h3 mb-1">Dashboard</h1>
           <p className="lh-dash-sub mb-0">Welcome back — here&apos;s what&apos;s happening today.</p>
         </div>
-        <div className="d-flex flex-wrap align-items-center gap-2">
-          <span className="lh-search-pill small text-secondary d-none d-md-inline">&#128269; Search…</span>
-          <span className="position-relative" title="Notifications">
-            &#128276;
-            <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{ fontSize: '0.55rem' }}>
-              3
-            </span>
-          </span>
-          <span className="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center" style={{ width: 36, height: 36, fontSize: '0.8rem' }}>
-            AD
-          </span>
-        </div>
       </div>
       {err ? <div className="alert alert-warning">{err}</div> : null}
 
@@ -56,7 +44,7 @@ export function AdminDashboard() {
           <div className="d-flex justify-content-between align-items-start">
             <div>
               <div className="text-secondary small">Active donors</div>
-              <div className="lh-kpi-value text-dark mt-1">{metrics ? metrics.activeSupporters : '—'}</div>
+              <div className="lh-kpi-value lh-kpi-value-strong mt-1">{metrics ? metrics.activeSupporters : '—'}</div>
               <div className="lh-kpi-meta text-success small mt-1">Current active supporters</div>
             </div>
             <span className="text-primary fs-4">&#9829;</span>
@@ -66,7 +54,7 @@ export function AdminDashboard() {
           <div className="d-flex justify-content-between align-items-start">
             <div>
               <div className="text-secondary small">Active residents</div>
-              <div className="lh-kpi-value text-dark mt-1">{residentCount ?? '—'}</div>
+              <div className="lh-kpi-value lh-kpi-value-strong mt-1">{residentCount ?? '—'}</div>
               <div className="lh-kpi-meta text-danger small mt-1">Current resident records</div>
             </div>
             <span className="text-secondary fs-4">&#128101;</span>
