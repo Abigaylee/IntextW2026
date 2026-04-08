@@ -1,0 +1,31 @@
+{
+  "target": "general_health_score",
+  "features": [
+    "nutrition_score",
+    "sleep_quality_score",
+    "energy_level_score",
+    "height_cm",
+    "weight_kg",
+    "bmi",
+    "medical_checkup_done",
+    "dental_checkup_done",
+    "psychological_checkup_done",
+    "notes",
+    "record_year",
+    "record_month"
+  ],
+  "selected_model": "RandomForest",
+  "metrics": {
+    "RandomForest": {
+      "MAE": 0.11892074766355132,
+      "RMSE": 0.1679298956980531,
+      "R2": 0.552485490601786
+    },
+    "LinearRegression": {
+      "MAE": 0.15823899565908384,
+      "RMSE": 0.21931204558921402,
+      "R2": 0.23673375639401917
+    }
+  },
+  "business_question": "Which factors are associated with better resident health and how can we reliably predict general health scores for operational planning?"
+}

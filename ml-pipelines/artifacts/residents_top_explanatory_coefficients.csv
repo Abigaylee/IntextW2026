@@ -1,0 +1,16 @@
+feature,abs_coefficient
+num__sub_cat_child_labor,0.3011470089122193
+cat__initial_risk_level_Low,0.29289220231662694
+num__family_is_4ps,0.24625936896852124
+cat__initial_risk_level_Medium,0.22426922914649772
+cat__initial_risk_level_High,0.20475777735707357
+cat__initial_case_assessment_For Foster Care,0.20470328762382917
+num__sub_cat_at_risk,0.20421338263755426
+cat__referral_source_Community,0.19363990068633008
+cat__initial_case_assessment_For Continued Care,0.18737055203340747
+num__has_special_needs,0.18477949853821848
+num__family_indigenous,0.18258948708719452
+cat__assigned_social_worker_SW-16,0.17695093730419886
+cat__referral_source_Self-Referral,0.17345471995492945
+cat__referring_agency_person_Noel Reyes,0.17321821414171396
+num__sub_cat_osaec,0.17288249643287146

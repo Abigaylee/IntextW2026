@@ -1,0 +1,21 @@
+feature,importance
+num__partner_id,1.2647178678521296
+cat__assignment_end_2025-12-31,1.2152940314894618
+cat__assignment_end_nan,1.2135927645191915
+cat__assignment_start_2023-07-15,0.47701286245815205
+cat__responsibility_notes_Education support for safehouse operations,0.45826026013720256
+cat__program_area_Education,0.45826026013720256
+cat__assignment_start_2023-08-04,0.3850182417151335
+cat__assignment_start_2023-06-25,0.3532629273161765
+cat__program_area_Operations,0.28534274724827224
+cat__responsibility_notes_SafehouseOps support for safehouse operations,0.2725253794260019
+cat__responsibility_notes_Logistics support for safehouse operations,0.21552784701584532
+cat__assignment_start_2023-01-16,0.20363605613619612
+cat__program_area_Wellbeing,0.19007240278770116
+cat__responsibility_notes_Evaluation support for safehouse operations,0.19007240278770116
+cat__assignment_start_2023-05-16,0.18057554351208807
+cat__program_area_Transport,0.179907349658974
+cat__responsibility_notes_Maintenance support for safehouse operations,0.16105119278993263
+cat__program_area_Maintenance,0.16105119278993263
+cat__assignment_start_2022-11-17,0.14307139972411934
+cat__assignment_start_2023-02-25,0.09132698605101473

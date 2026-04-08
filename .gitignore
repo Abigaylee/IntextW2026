@@ -18,6 +18,14 @@ node_modules/
 **/Logs/*.txt
 !**/Logs/.gitkeep
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Accidental nested copy (duplicate artifacts)
+ml-pipelines/ml-pipelines/
+
 # OS
 .DS_Store
 Thumbs.db

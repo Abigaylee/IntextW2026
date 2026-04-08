@@ -1,0 +1,46 @@
+{
+  "dataset": "partner_assignments.csv",
+  "target": "status",
+  "task_type": "classification",
+  "features_used": [
+    "partner_id",
+    "safehouse_id",
+    "program_area",
+    "assignment_start",
+    "assignment_end",
+    "responsibility_notes",
+    "is_primary"
+  ],
+  "numeric_features": [
+    "partner_id",
+    "safehouse_id"
+  ],
+  "categorical_features": [
+    "program_area",
+    "assignment_start",
+    "assignment_end",
+    "responsibility_notes",
+    "is_primary"
+  ],
+  "best_model_selected": "explanatory",
+  "metrics": [
+    {
+      "model": "explanatory",
+      "accuracy": 1.0,
+      "f1_weighted": 1.0,
+      "roc_auc": 1.0,
+      "pr_auc": 1.0,
+      "positive_label": "Ended"
+    },
+    {
+      "model": "predictive",
+      "accuracy": 1.0,
+      "f1_weighted": 1.0,
+      "roc_auc": 1.0,
+      "pr_auc": 1.0,
+      "positive_label": "Ended"
+    }
+  ],
+  "top_features_file": "partner_assignments_top_features.csv",
+  "fairness_report_file": "partner_assignments_fairness_report.csv"
+}

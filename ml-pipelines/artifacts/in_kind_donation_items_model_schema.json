@@ -1,0 +1,33 @@
+{
+  "target": "estimated_item_total",
+  "feature_columns": [
+    "donation_id",
+    "item_name",
+    "item_category",
+    "quantity",
+    "unit_of_measure",
+    "estimated_unit_value",
+    "intended_use",
+    "received_condition",
+    "is_bulk_item"
+  ],
+  "numeric_features": [
+    "donation_id",
+    "quantity",
+    "estimated_unit_value",
+    "is_bulk_item"
+  ],
+  "categorical_features": [
+    "item_name",
+    "item_category",
+    "unit_of_measure",
+    "intended_use",
+    "received_condition"
+  ],
+  "model_type": "RandomForestRegressor",
+  "metrics": {
+    "MAE": 1218.2752493825972,
+    "RMSE": 1773.0591058869668,
+    "R2": 0.9523017834511451
+  }
+}

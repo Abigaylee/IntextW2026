@@ -1,0 +1,6 @@
+- Prioritize case-review workflows around the highest-impact predictive factors: cat__initial_risk_level_Low, num__family_is_4ps, cat__referral_source_Self-Referral, num__length_of_stay_months, num__present_age_months
+- Features associated with higher risk (explanatory): cat__assigned_social_worker_SW-05, num__sub_cat_child_labor, cat__length_of_stay_1 Years 6 months
+- Features associated with lower risk (explanatory): cat__referral_source_Self-Referral, cat__initial_risk_level_Low, cat__place_of_birth_Cagayan de Oro
+- Use predictive outputs weekly to triage residents into intervention tiers (Critical/High first).
+- Track fairness metrics by subgroup each retrain cycle and trigger review if macro-F1 gaps exceed policy threshold.
+- Retrain monthly or when drift is detected in referral source mix, case status mix, or risk distribution.

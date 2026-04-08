@@ -1,0 +1,38 @@
+{
+  "target": "visit_outcome",
+  "features": [
+    "social_worker",
+    "visit_type",
+    "location_visited",
+    "family_members_present",
+    "family_cooperation_level",
+    "safety_concerns_noted",
+    "follow_up_needed",
+    "visit_year",
+    "visit_month",
+    "visit_dow",
+    "family_present_count",
+    "cooperation_score"
+  ],
+  "categorical_features": [
+    "social_worker",
+    "visit_type",
+    "location_visited",
+    "family_members_present",
+    "family_cooperation_level"
+  ],
+  "numeric_features": [
+    "safety_concerns_noted",
+    "follow_up_needed",
+    "visit_year",
+    "visit_month",
+    "visit_dow",
+    "family_present_count",
+    "cooperation_score"
+  ],
+  "selected_predictive_model": "log_reg",
+  "metrics": {
+    "macro_f1": 0.4946150863164088,
+    "balanced_accuracy": 0.5058505965261046
+  }
+}

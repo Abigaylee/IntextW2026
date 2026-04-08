@@ -1,0 +1,16 @@
+feature,coef_abs
+num__resident_id,51.58477849765906
+cat__created_at_2023-08-01 00:00:00,1.141172870096755
+cat__case_conference_date_2023-12-15,1.141172870096755
+cat__case_conference_date_2024-07-06,1.1182815302305056
+"cat__services_provided_Healing, Caring, Teaching",1.0997534874328725
+cat__case_conference_date_2024-05-19,1.0958869324926657
+cat__case_conference_date_2023-10-24,1.0905238970400994
+cat__created_at_2023-01-01 00:00:00,1.0122807231454845
+cat__case_conference_date_2024-08-21,0.9009592355805129
+cat__created_at_2025-02-01 00:00:00,0.8976864505094057
+cat__created_at_2024-09-01 00:00:00,0.8951605097024714
+cat__case_conference_date_2023-08-10,0.8681591703502802
+cat__services_provided_Legal Services,0.8600498088150932
+"cat__services_provided_Legal Services, Healing",0.8483357118662465
+cat__case_conference_date_2024-01-31,0.8133907549524135

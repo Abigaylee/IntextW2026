@@ -1,0 +1,45 @@
+{
+  "pipeline": "intervention_plans",
+  "dataset": "datasets\\intervention_plans.csv",
+  "target": "plan_id",
+  "problem_type": "regression",
+  "features_used": [
+    "resident_id",
+    "plan_category",
+    "plan_description",
+    "services_provided",
+    "target_value",
+    "target_date",
+    "status",
+    "case_conference_date",
+    "created_at",
+    "updated_at"
+  ],
+  "id_like_columns_dropped": [],
+  "best_predictive_model": "RandomForestRegressor(max_depth=8, n_estimators=200, random_state=42)",
+  "evaluation_rows": [
+    {
+      "model": "explanatory_linear",
+      "rmse": 0.7844398246828607,
+      "mae": 0.5785255216211538,
+      "r2": 0.9997589169674302
+    },
+    {
+      "model": "predictive_random_forest_tuned",
+      "rmse": 1.545229426186437,
+      "mae": 1.3187499999999992,
+      "r2": 0.9990645225616245
+    },
+    {
+      "model": "predictive_gradient_boosting",
+      "rmse": 0.6075477767455612,
+      "mae": 0.528444190402952,
+      "r2": 0.9998553866956073
+    }
+  ],
+  "recommendations": [
+    "Prioritize interventions on records with high values of: num__resident_id, cat__status_In Progress, cat__case_conference_date_2023-09-25.",
+    "Use the explanatory model to justify policy changes around the strongest directional drivers.",
+    "Monitor fairness table by group each retraining cycle and adjust data collection where gaps persist."
+  ]
+}

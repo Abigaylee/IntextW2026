@@ -1,0 +1,16 @@
+feature,importance
+num__resident_id,0.9983470893496933
+cat__status_In Progress,8.815714335093165e-05
+cat__case_conference_date_2023-09-25,5.764971110586853e-05
+cat__updated_at_2023-12-01 00:00:00,4.8877607282643605e-05
+cat__status_Open,3.7868293788760176e-05
+cat__created_at_2024-01-01 00:00:00,3.668800261552813e-05
+cat__created_at_2023-10-01 00:00:00,3.390715728563918e-05
+cat__target_date_2024-08-01,3.046739376171607e-05
+cat__target_date_2023-11-01,2.905398091647645e-05
+cat__status_Achieved,2.7833955448141475e-05
+cat__status_On Hold,2.780217482547567e-05
+cat__created_at_2025-03-01 00:00:00,2.647808560105807e-05
+cat__plan_description_Maintain a stable and safe environment,2.6018432744014492e-05
+cat__target_date_2024-04-01,2.557345025919427e-05
+cat__target_date_2024-05-01,2.3916050635560926e-05

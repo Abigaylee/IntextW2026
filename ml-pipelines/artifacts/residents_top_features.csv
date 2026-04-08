@@ -1,0 +1,16 @@
+feature,importance
+cat__initial_risk_level_Low,0.03530584786596798
+num__length_of_stay_months,0.03198977674631543
+num__age_upon_admission_months,0.03126799562431166
+num__present_age_months,0.028576822305867656
+num__safehouse_id,0.02490185239742534
+num__family_is_4ps,0.024452734798619667
+cat__initial_risk_level_Medium,0.022723158356784155
+num__days_enrolled_to_closed,0.02077083868703333
+cat__referral_source_Community,0.018501107601549435
+cat__initial_risk_level_High,0.016158838813506222
+cat__age_upon_admission_15 Years 5 months,0.015582824122403952
+cat__initial_case_assessment_For Continued Care,0.012933653617856332
+cat__case_status_Active,0.012081255364038958
+cat__assigned_social_worker_SW-16,0.012057301229019953
+cat__referral_source_Self-Referral,0.011725552804668886

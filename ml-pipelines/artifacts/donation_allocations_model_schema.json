@@ -1,0 +1,6 @@
+{
+  "pipeline_name": "donation_allocations",
+  "features": [],
+  "target": "define_in_notebook",
+  "notes": "Schema placeholder created by standardization script. Replace with real feature schema."
+}

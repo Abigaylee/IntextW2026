@@ -1,0 +1,9 @@
+feature,importance
+num__donation_id,0.7042019213651877
+num__safehouse_id,0.13427749569509306
+cat__program_area_Maintenance,0.04258928107362079
+cat__program_area_Education,0.03464024898878827
+cat__program_area_Operations,0.0261456485473934
+cat__program_area_Transport,0.0252298709619604
+cat__program_area_Wellbeing,0.020657054173586327
+cat__program_area_Outreach,0.012258479194370049

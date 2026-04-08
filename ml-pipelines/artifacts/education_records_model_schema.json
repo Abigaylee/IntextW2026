@@ -1,0 +1,37 @@
+{
+  "target": "completion_status",
+  "required_features": [
+    "resident_id",
+    "record_date",
+    "education_level",
+    "school_name",
+    "enrollment_status",
+    "attendance_rate",
+    "progress_percent",
+    "record_year",
+    "record_month",
+    "record_quarter",
+    "note_progress_tag"
+  ],
+  "categorical_features": [
+    "education_level",
+    "school_name",
+    "enrollment_status",
+    "note_progress_tag"
+  ],
+  "numeric_features": [
+    "resident_id",
+    "record_date",
+    "attendance_rate",
+    "progress_percent",
+    "record_year",
+    "record_month",
+    "record_quarter"
+  ],
+  "prediction_classes": [
+    "Completed",
+    "InProgress",
+    "NotStarted"
+  ],
+  "recommended_primary_metric": "f1_weighted"
+}

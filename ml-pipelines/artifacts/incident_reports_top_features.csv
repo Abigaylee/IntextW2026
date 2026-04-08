@@ -1,0 +1,10 @@
+feature,importance_mean,importance_std
+severity,0.3903809769521843,0.09723678804905929
+has_resolution_date,0.026470588235294124,0.029264336385488834
+resident_id,0.0,0.0
+safehouse_id,0.0,0.0
+incident_type,0.0,0.0
+resolved,0.0,0.0
+reported_by,0.0,0.0
+days_since_incident,0.0,0.0
+resolution_time_days,0.0,0.0

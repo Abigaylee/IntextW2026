@@ -1,0 +1,36 @@
+feature,importance
+cat__note_progress_tag_InProgress,0.2665954198363431
+cat__note_progress_tag_Completed,0.227618420107714
+cat__note_progress_tag_NotStarted,0.22593133156531336
+num__progress_percent,0.11760086009107738
+num__attendance_rate,0.04618493903199236
+num__record_date,0.026600195553797987
+num__resident_id,0.016223869289209582
+num__record_year,0.012747266756681667
+num__record_month,0.010531643191343846
+num__record_quarter,0.0052795547677642884
+cat__education_level_Primary,0.003663585412961922
+cat__school_name_School 5,0.0033537039162135664
+cat__school_name_School 13,0.00304335768512587
+cat__education_level_Vocational,0.0029959098344265796
+cat__school_name_School 7,0.002423279222870666
+cat__education_level_Secondary,0.0023733356637375036
+cat__school_name_School 10,0.0021791807989140237
+cat__school_name_School 16,0.0020632896067681304
+cat__school_name_School 17,0.0020211371025139814
+cat__school_name_School 19,0.001971975324588312
+cat__education_level_CollegePrep,0.0018817487658550436
+cat__school_name_School 2,0.0016918600014561925
+cat__school_name_School 15,0.0016880246808811776
+cat__school_name_School 8,0.0016513215003599309
+cat__school_name_School 18,0.001506799553874567
+cat__school_name_School 3,0.0013388150862529125
+cat__school_name_School 1,0.0012968135052657292
+cat__school_name_School 4,0.0012644638451671023
+cat__school_name_School 20,0.0012400768528267967
+cat__school_name_School 11,0.0011166397551108866
+cat__school_name_School 12,0.0010776637361722377
+cat__school_name_School 9,0.0010062775811032422
+cat__school_name_School 6,0.0009977625516819249
+cat__school_name_School 14,0.0008394778246342105
+cat__enrollment_status_Enrolled,0.0

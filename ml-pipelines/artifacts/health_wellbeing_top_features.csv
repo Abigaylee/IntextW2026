@@ -1,0 +1,14 @@
+,importance
+nutrition_score,0.23870747440987064
+energy_level_score,0.1889029760964349
+sleep_quality_score,0.1820328692760268
+weight_kg,0.1318079239832535
+height_cm,0.07446201076680682
+bmi,0.07402431288139923
+record_month,0.04514962078978312
+record_year,0.03338320836282411
+medical_checkup_done,0.012038915517840363
+psychological_checkup_done,0.0059027216056483115
+notes_Health status: Stable,0.004961599448120825
+dental_checkup_done,0.004489099309599167
+notes_Health status: Improving,0.004137267552392242
