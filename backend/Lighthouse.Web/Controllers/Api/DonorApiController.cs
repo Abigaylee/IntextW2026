@@ -78,6 +78,8 @@ public class DonorApiController : ControllerBase
     }
 
     public record DonorDonateRequest(decimal Amount, string? Notes, bool IsRecurring);
+    public record RecurringDonationRow(int DonationId, string DonationDate, decimal Amount, string? Notes, string? CurrencyCode, DateTimeOffset CreatedAt);
+    public record UpdateRecurringDonationRequest(decimal Amount, string? Notes);
 
     [HttpPost("donate")]
     public async Task<IActionResult> Donate([FromBody] DonorDonateRequest req, CancellationToken cancellationToken)
@@ -88,6 +90,26 @@ public class DonorApiController : ControllerBase
         var supporterId = await ResolveSupporterIdAsync(cancellationToken);
         if (supporterId is null)
             return BadRequest(new { error = "Donor account is not linked to a supporter record." });
+
+        var priorStats = await _db.Donations
+            .AsNoTracking()
+            .Where(d => d.SupporterId == supporterId.Value)
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Count = g.Count(),
+                Total = g.Sum(x => x.Amount ?? x.EstimatedValue ?? 0m)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var previousDonationCount = priorStats?.Count ?? 0;
+        var previousTotal = priorStats?.Total ?? 0m;
+
+        var donorName = await _db.Supporters
+            .AsNoTracking()
+            .Where(s => s.SupporterId == supporterId.Value)
+            .Select(s => s.FirstName ?? s.DisplayName)
+            .FirstOrDefaultAsync(cancellationToken);
 
         var donation = new Donation
         {
@@ -107,7 +129,108 @@ public class DonorApiController : ControllerBase
         _db.Donations.Add(donation);
         await _db.SaveChangesAsync(cancellationToken);
 
-        return Created(string.Empty, new { donationId = donation.DonationId, message = "Donation recorded." });
+        var currentTotal = previousTotal + req.Amount;
+        var message = BuildMilestoneMessage(donorName, previousDonationCount, previousTotal, currentTotal);
+
+        return Created(string.Empty, new { donationId = donation.DonationId, message });
+    }
+
+    private static string BuildMilestoneMessage(string? donorName, int previousDonationCount, decimal previousTotal, decimal currentTotal)
+    {
+        var normalizedName = string.IsNullOrWhiteSpace(donorName) ? "Donor" : donorName.Trim();
+
+        // Priority rule: first donation message always wins, even if donation crosses monetary thresholds.
+        if (previousDonationCount == 0)
+        {
+            return $"Thank you for your very first donation, {normalizedName}! Your support means so much to us.";
+        }
+
+        var milestones = new[] { 10000m, 5000m, 1000m, 100m };
+        var crossed = milestones.FirstOrDefault(m => previousTotal < m && currentTotal >= m);
+        if (crossed > 0)
+        {
+            return crossed switch
+            {
+                100m => $"Thank you, {normalizedName}! You just crossed $100 in total giving. Your generosity is already creating impact.",
+                1000m => $"Amazing, {normalizedName}! You just crossed $1,000 in total giving. Thank you for standing with us in a big way.",
+                5000m => $"Incredible milestone, {normalizedName}! You have now given over $5,000. Your commitment is changing lives.",
+                10000m => $"Extraordinary generosity, {normalizedName}! You have surpassed $10,000 in total giving. We are deeply grateful for your partnership.",
+                _ => $"Thank you, {normalizedName}, for your donation!"
+            };
+        }
+
+        return $"Thank you, {normalizedName}! Your donation was recorded successfully.";
+    }
+
+    [HttpGet("recurring-donations")]
+    public async Task<IActionResult> RecurringDonations(CancellationToken cancellationToken)
+    {
+        var supporterId = await ResolveSupporterIdAsync(cancellationToken);
+        if (supporterId is null)
+            return BadRequest(new { error = "Donor account is not linked to a supporter record." });
+
+        var rows = await _db.Donations
+            .AsNoTracking()
+            .Where(d => d.SupporterId == supporterId.Value && d.IsRecurring)
+            .OrderByDescending(d => d.CreatedAt)
+            .Select(d => new RecurringDonationRow(
+                d.DonationId,
+                d.DonationDate.ToString("yyyy-MM-dd"),
+                d.Amount ?? d.EstimatedValue ?? 0m,
+                d.Notes,
+                d.CurrencyCode,
+                d.CreatedAt))
+            .ToListAsync(cancellationToken);
+
+        return Ok(rows);
+    }
+
+    [HttpPut("recurring-donations/{donationId:int}")]
+    public async Task<IActionResult> UpdateRecurringDonation(int donationId, [FromBody] UpdateRecurringDonationRequest req, CancellationToken cancellationToken)
+    {
+        if (req.Amount <= 0)
+            return BadRequest(new { error = "Amount must be greater than zero." });
+
+        var supporterId = await ResolveSupporterIdAsync(cancellationToken);
+        if (supporterId is null)
+            return BadRequest(new { error = "Donor account is not linked to a supporter record." });
+
+        var donation = await _db.Donations.FirstOrDefaultAsync(
+            d => d.DonationId == donationId && d.SupporterId == supporterId.Value,
+            cancellationToken);
+
+        if (donation is null)
+            return NotFound(new { error = "Recurring donation not found." });
+        if (!donation.IsRecurring)
+            return BadRequest(new { error = "Only recurring donations can be edited from this view." });
+
+        donation.Amount = req.Amount;
+        donation.EstimatedValue = req.Amount;
+        donation.Notes = req.Notes?.Trim();
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { message = "Recurring donation updated." });
+    }
+
+    [HttpDelete("recurring-donations/{donationId:int}")]
+    public async Task<IActionResult> DeleteRecurringDonation(int donationId, CancellationToken cancellationToken)
+    {
+        var supporterId = await ResolveSupporterIdAsync(cancellationToken);
+        if (supporterId is null)
+            return BadRequest(new { error = "Donor account is not linked to a supporter record." });
+
+        var donation = await _db.Donations.FirstOrDefaultAsync(
+            d => d.DonationId == donationId && d.SupporterId == supporterId.Value,
+            cancellationToken);
+
+        if (donation is null)
+            return NotFound(new { error = "Recurring donation not found." });
+        if (!donation.IsRecurring)
+            return BadRequest(new { error = "Only recurring donations can be deleted from this view." });
+
+        _db.Donations.Remove(donation);
+        await _db.SaveChangesAsync(cancellationToken);
+        return NoContent();
     }
 
     private async Task<int?> ResolveSupporterIdAsync(CancellationToken cancellationToken)
