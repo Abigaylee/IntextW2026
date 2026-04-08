@@ -24,22 +24,16 @@ export function CookieBanner() {
       className="lh-cookie-banner position-fixed bottom-0 start-0 end-0 p-3 shadow-lg"
       style={{ zIndex: 1080 }}
       role="dialog"
-      aria-modal="true"
-      aria-labelledby="cookie-consent-heading"
+      aria-label="Cookie consent"
     >
       <div className="container d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
-        <div className="small">
-          <h2 id="cookie-consent-heading" className="h6 text-white mb-1">
-            Cookie consent
-          </h2>
-          <p className="mb-0">
-            We use essential cookies for authentication/session behavior and optional preference cookies only after consent. Review our{' '}
-            <a className="lh-cookie-banner-link" href="/privacy">
-              Privacy
-            </a>{' '}
-            policy.
-          </p>
-        </div>
+        <p className="mb-0 small">
+          We use essential cookies for authentication/session behavior and optional preference cookies only after consent. Review our{' '}
+          <a className="link-light" href="/privacy">
+            Privacy
+          </a>{' '}
+          policy.
+        </p>
         <div className="d-flex gap-2">
           <button
             type="button"

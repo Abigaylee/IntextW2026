@@ -59,9 +59,7 @@ export function Donate() {
     return (
       <section className="mx-auto text-center" style={{ maxWidth: '760px' }}>
         <div className="card border-0 shadow-sm p-5">
-          <div className="mb-3" style={{ fontSize: '3rem' }} aria-hidden="true">
-            🎉
-          </div>
+          <div className="mb-3" style={{ fontSize: '3rem' }}>🎉</div>
           <h1 className="h2 mb-3">Thank You!</h1>
           <p className="text-secondary mb-4">
             Your generous donation of <strong>${effectiveAmount.toFixed(2)}</strong> has been recorded.
@@ -103,7 +101,6 @@ export function Donate() {
                 key={amount}
                 type="button"
                 className={`btn ${selectedAmount === amount ? 'btn-primary' : 'btn-outline-primary'}`}
-                aria-pressed={selectedAmount === amount}
                 onClick={() => setSelectedAmount(amount)}
               >
                 ${amount}
@@ -112,7 +109,6 @@ export function Donate() {
             <button
               type="button"
               className={`btn ${selectedAmount === 'custom' ? 'btn-primary' : 'btn-outline-primary'}`}
-              aria-pressed={selectedAmount === 'custom'}
               onClick={() => setSelectedAmount('custom')}
             >
               Custom
