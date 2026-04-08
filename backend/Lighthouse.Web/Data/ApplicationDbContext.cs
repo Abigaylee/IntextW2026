@@ -129,10 +129,17 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.Property(s => s.SafehouseId).HasColumnName("safehouse_id");
             entity.Property(s => s.SafehouseCode).HasColumnName("safehouse_code");
+            entity.Property(s => s.Name).HasColumnName("name");
+            entity.Property(s => s.Region).HasColumnName("region");
+            entity.Property(s => s.City).HasColumnName("city");
+            entity.Property(s => s.Province).HasColumnName("province");
+            entity.Property(s => s.Country).HasColumnName("country");
             entity.Property(s => s.OpenDate).HasColumnName("open_date");
+            entity.Property(s => s.Status).HasColumnName("status");
             entity.Property(s => s.CapacityGirls).HasColumnName("capacity_girls");
             entity.Property(s => s.CapacityStaff).HasColumnName("capacity_staff");
             entity.Property(s => s.CurrentOccupancy).HasColumnName("current_occupancy");
+            entity.Property(s => s.Notes).HasColumnName("notes");
         });
 
         modelBuilder.Entity<DonationAllocation>(entity =>
@@ -212,7 +219,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(r => r.CaseStatus).HasColumnName("case_status");
             entity.Property(r => r.Sex).HasColumnName("sex");
             entity.Property(r => r.DateOfBirth).HasColumnName("date_of_birth");
-            entity.Property(r => r.BirthStatus).HasColumnName("birth_status");
+            entity.Property(r => r.BirthStatus).HasColumnName("birth_status").HasColumnType("birth_status");
             entity.Property(r => r.PlaceOfBirth).HasColumnName("place_of_birth");
             entity.Property(r => r.Religion).HasColumnName("religion");
             entity.Property(r => r.CaseCategory).HasColumnName("case_category");

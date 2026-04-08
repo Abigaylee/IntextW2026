@@ -17,6 +17,31 @@ namespace Lighthouse.Web.Controllers.Api;
 [IgnoreAntiforgeryToken]
 public class AdminApiController : ControllerBase
 {
+    private static readonly HashSet<string> ValidCaseStatuses = new(StringComparer.Ordinal)
+    {
+        "Active", "Closed", "On Hold"
+    };
+    private static readonly HashSet<string> ValidCaseCategories = new(StringComparer.Ordinal)
+    {
+        "Neglected", "Abandoned", "Surrendered", "Foundling"
+    };
+    private static readonly HashSet<string> ValidReferralSources = new(StringComparer.Ordinal)
+    {
+        "NGO", "Government Agency", "Court Order", "Police", "Community", "Self-Referral"
+    };
+    private static readonly HashSet<string> ValidReintegrationTypes = new(StringComparer.Ordinal)
+    {
+        "Family Reunification", "Foster Care", "Adoption (Domestic)", "Adoption (Inter-Country)", "Independent Living"
+    };
+    private static readonly HashSet<string> ValidReintegrationStatuses = new(StringComparer.Ordinal)
+    {
+        "Not Started", "In Progress", "Completed", "On Hold"
+    };
+    private static readonly HashSet<string> ValidRiskLevels = new(StringComparer.Ordinal)
+    {
+        "Low", "Medium", "High", "Critical"
+    };
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
@@ -133,6 +158,98 @@ public class AdminApiController : ControllerBase
         if (added == null)
             return NotFound();
 
+        if (added is Resident addedResident)
+        {
+            // Use explicit SQL for resident create to avoid varchar-to-enum binding issues.
+            var connection = (NpgsqlConnection)_db.Database.GetDbConnection();
+            if (connection.State != System.Data.ConnectionState.Open)
+            {
+                await connection.OpenAsync(cancellationToken);
+            }
+
+            await using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                INSERT INTO residents
+                (
+                    case_control_no, internal_code, safehouse_id, case_status,
+                    sex, date_of_birth, place_of_birth, religion, case_category,
+                    sub_cat_orphaned, sub_cat_trafficked, sub_cat_child_labor, sub_cat_physical_abuse,
+                    sub_cat_sexual_abuse, sub_cat_osaec, sub_cat_cicl, sub_cat_at_risk, sub_cat_street_child, sub_cat_child_with_hiv,
+                    is_pwd, pwd_type, has_special_needs, special_needs_diagnosis,
+                    family_is_4ps, family_solo_parent, family_indigenous, family_parent_pwd, family_informal_settler,
+                    date_of_admission, referring_agency_person, assigned_social_worker, reintegration_status
+                )
+                VALUES
+                (
+                    @case_control_no, @internal_code, @safehouse_id, CAST(@case_status AS case_status),
+                    @sex, @date_of_birth, @place_of_birth, @religion, CAST(@case_category AS case_category),
+                    @sub_cat_orphaned, @sub_cat_trafficked, @sub_cat_child_labor, @sub_cat_physical_abuse,
+                    @sub_cat_sexual_abuse, @sub_cat_osaec, @sub_cat_cicl, @sub_cat_at_risk, @sub_cat_street_child, @sub_cat_child_with_hiv,
+                    @is_pwd, @pwd_type, @has_special_needs, @special_needs_diagnosis,
+                    @family_is_4ps, @family_solo_parent, @family_indigenous, @family_parent_pwd, @family_informal_settler,
+                    @date_of_admission, @referring_agency_person, @assigned_social_worker, CAST(@reintegration_status AS reintegration_status)
+                )
+                RETURNING resident_id;";
+
+            cmd.Parameters.AddWithValue("case_control_no", addedResident.CaseControlNo);
+            cmd.Parameters.AddWithValue("internal_code", addedResident.InternalCode);
+            cmd.Parameters.AddWithValue("safehouse_id", addedResident.SafehouseId);
+            cmd.Parameters.AddWithValue("case_status", string.IsNullOrWhiteSpace(addedResident.CaseStatus) ? "Active" : addedResident.CaseStatus);
+            cmd.Parameters.AddWithValue("sex", string.IsNullOrWhiteSpace(addedResident.Sex) ? "F" : addedResident.Sex);
+            cmd.Parameters.AddWithValue("date_of_birth", addedResident.DateOfBirth);
+            cmd.Parameters.AddWithValue("place_of_birth", (object?)addedResident.PlaceOfBirth ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("religion", (object?)addedResident.Religion ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("case_category", addedResident.CaseCategory);
+            cmd.Parameters.AddWithValue("sub_cat_orphaned", addedResident.SubCatOrphaned);
+            cmd.Parameters.AddWithValue("sub_cat_trafficked", addedResident.SubCatTrafficked);
+            cmd.Parameters.AddWithValue("sub_cat_child_labor", addedResident.SubCatChildLabor);
+            cmd.Parameters.AddWithValue("sub_cat_physical_abuse", addedResident.SubCatPhysicalAbuse);
+            cmd.Parameters.AddWithValue("sub_cat_sexual_abuse", addedResident.SubCatSexualAbuse);
+            cmd.Parameters.AddWithValue("sub_cat_osaec", addedResident.SubCatOsaec);
+            cmd.Parameters.AddWithValue("sub_cat_cicl", addedResident.SubCatCicl);
+            cmd.Parameters.AddWithValue("sub_cat_at_risk", addedResident.SubCatAtRisk);
+            cmd.Parameters.AddWithValue("sub_cat_street_child", addedResident.SubCatStreetChild);
+            cmd.Parameters.AddWithValue("sub_cat_child_with_hiv", addedResident.SubCatChildWithHiv);
+            cmd.Parameters.AddWithValue("is_pwd", addedResident.IsPwd);
+            cmd.Parameters.AddWithValue("pwd_type", (object?)addedResident.PwdType ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("has_special_needs", addedResident.HasSpecialNeeds);
+            cmd.Parameters.AddWithValue("special_needs_diagnosis", (object?)addedResident.SpecialNeedsDiagnosis ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("family_is_4ps", addedResident.FamilyIs4ps);
+            cmd.Parameters.AddWithValue("family_solo_parent", addedResident.FamilySoloParent);
+            cmd.Parameters.AddWithValue("family_indigenous", addedResident.FamilyIndigenous);
+            cmd.Parameters.AddWithValue("family_parent_pwd", addedResident.FamilyParentPwd);
+            cmd.Parameters.AddWithValue("family_informal_settler", addedResident.FamilyInformalSettler);
+            cmd.Parameters.AddWithValue("date_of_admission", addedResident.DateOfAdmission);
+            cmd.Parameters.AddWithValue("referring_agency_person", (object?)addedResident.ReferringAgencyPerson ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("assigned_social_worker", (object?)addedResident.AssignedSocialWorker ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("reintegration_status", string.IsNullOrWhiteSpace(addedResident.ReintegrationStatus) ? "Not Started" : addedResident.ReintegrationStatus);
+
+            object? newIdObj;
+            try
+            {
+                newIdObj = await cmd.ExecuteScalarAsync(cancellationToken);
+            }
+            catch (PostgresException pg) when (pg.SqlState == "23505")
+            {
+                if (string.Equals(pg.ConstraintName, "residents_case_control_no_key", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Conflict(new { error = "Case control number already exists. Please use a unique value." });
+                }
+                if (string.Equals(pg.ConstraintName, "residents_internal_code_key", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Conflict(new { error = "Internal code already exists. Please use a unique value." });
+                }
+                return Conflict(new { error = "A resident with one of these unique identifiers already exists." });
+            }
+            if (newIdObj == null || newIdObj == DBNull.Value)
+                return BadRequest("Failed to create resident.");
+
+            var newId = Convert.ToInt32(newIdObj);
+            var created = await _db.Residents.FindAsync(new object[] { newId }, cancellationToken);
+            await _audit.LogAsync(userId, "Create", entity, newId.ToString(), null, body.GetRawText(), HttpContext.Connection.RemoteIpAddress?.ToString(), HttpContext.TraceIdentifier, cancellationToken);
+            return Ok(created);
+        }
+
         _db.Add(added);
         await _db.SaveChangesAsync(cancellationToken);
         await _audit.LogAsync(userId, "Create", entity, GetKey(added), null, body.GetRawText(), HttpContext.Connection.RemoteIpAddress?.ToString(), HttpContext.TraceIdentifier, cancellationToken);
@@ -143,11 +260,165 @@ public class AdminApiController : ControllerBase
     public async Task<IActionResult> Update(string entity, string id, [FromBody] JsonElement body, CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown";
-        var existing = await FindTrackedAsync(entity, id, cancellationToken);
+        var normalizedEntity = entity.ToLowerInvariant();
+        var existing = await FindTrackedAsync(normalizedEntity, id, cancellationToken);
         if (existing == null)
             return NotFound();
 
         var oldJson = JsonSerializer.Serialize(existing, JsonOptions);
+
+        if (normalizedEntity == "residents" && existing is Resident trackedResident)
+        {
+            var incomingResident = JsonSerializer.Deserialize<Resident>(body, JsonOptions);
+            if (incomingResident == null)
+                return BadRequest();
+
+            // Never allow key mutation from generic admin payloads.
+            incomingResident.ResidentId = trackedResident.ResidentId;
+            string? requestedCaseStatus = null;
+            if (body.TryGetProperty("caseStatus", out var caseStatusEl) && caseStatusEl.ValueKind == JsonValueKind.String)
+            {
+                requestedCaseStatus = caseStatusEl.GetString();
+            }
+            else if (body.TryGetProperty("CaseStatus", out caseStatusEl) && caseStatusEl.ValueKind == JsonValueKind.String)
+            {
+                requestedCaseStatus = caseStatusEl.GetString();
+            }
+            string? requestedCaseCategory = null;
+            if (body.TryGetProperty("caseCategory", out var caseCategoryEl) && caseCategoryEl.ValueKind == JsonValueKind.String)
+            {
+                requestedCaseCategory = caseCategoryEl.GetString();
+            }
+            else if (body.TryGetProperty("CaseCategory", out caseCategoryEl) && caseCategoryEl.ValueKind == JsonValueKind.String)
+            {
+                requestedCaseCategory = caseCategoryEl.GetString();
+            }
+            string? requestedReferralSource = null;
+            if (body.TryGetProperty("referralSource", out var referralSourceEl) && referralSourceEl.ValueKind == JsonValueKind.String)
+            {
+                requestedReferralSource = referralSourceEl.GetString();
+            }
+            else if (body.TryGetProperty("ReferralSource", out referralSourceEl) && referralSourceEl.ValueKind == JsonValueKind.String)
+            {
+                requestedReferralSource = referralSourceEl.GetString();
+            }
+            string? requestedReintegrationType = null;
+            if (body.TryGetProperty("reintegrationType", out var reintegrationTypeEl) && reintegrationTypeEl.ValueKind == JsonValueKind.String)
+            {
+                requestedReintegrationType = reintegrationTypeEl.GetString();
+            }
+            else if (body.TryGetProperty("ReintegrationType", out reintegrationTypeEl) && reintegrationTypeEl.ValueKind == JsonValueKind.String)
+            {
+                requestedReintegrationType = reintegrationTypeEl.GetString();
+            }
+            string? requestedReintegrationStatus = null;
+            if (body.TryGetProperty("reintegrationStatus", out var reintegrationStatusEl) && reintegrationStatusEl.ValueKind == JsonValueKind.String)
+            {
+                requestedReintegrationStatus = reintegrationStatusEl.GetString();
+            }
+            else if (body.TryGetProperty("ReintegrationStatus", out reintegrationStatusEl) && reintegrationStatusEl.ValueKind == JsonValueKind.String)
+            {
+                requestedReintegrationStatus = reintegrationStatusEl.GetString();
+            }
+            string? requestedCurrentRiskLevel = null;
+            if (body.TryGetProperty("currentRiskLevel", out var currentRiskLevelEl) && currentRiskLevelEl.ValueKind == JsonValueKind.String)
+            {
+                requestedCurrentRiskLevel = currentRiskLevelEl.GetString();
+            }
+            else if (body.TryGetProperty("CurrentRiskLevel", out currentRiskLevelEl) && currentRiskLevelEl.ValueKind == JsonValueKind.String)
+            {
+                requestedCurrentRiskLevel = currentRiskLevelEl.GetString();
+            }
+
+            var preservedCaseStatus = trackedResident.CaseStatus;
+            var preservedCaseCategory = trackedResident.CaseCategory;
+            var preservedReferralSource = trackedResident.ReferralSource;
+            var preservedReintegrationType = trackedResident.ReintegrationType;
+            var preservedReintegrationStatus = trackedResident.ReintegrationStatus;
+            var preservedBirthStatus = trackedResident.BirthStatus;
+            var preservedInitialCaseAssessment = trackedResident.InitialCaseAssessment;
+            var preservedInitialRiskLevel = trackedResident.InitialRiskLevel;
+            var preservedCurrentRiskLevel = trackedResident.CurrentRiskLevel;
+            _db.Entry(trackedResident).CurrentValues.SetValues(incomingResident);
+            // Enum-backed columns in PostgreSQL: preserve current values in generic CRUD path.
+            trackedResident.CaseStatus = preservedCaseStatus;
+            trackedResident.CaseCategory = preservedCaseCategory;
+            trackedResident.ReferralSource = preservedReferralSource;
+            trackedResident.ReintegrationType = preservedReintegrationType;
+            trackedResident.ReintegrationStatus = preservedReintegrationStatus;
+            trackedResident.BirthStatus = preservedBirthStatus;
+            trackedResident.InitialCaseAssessment = preservedInitialCaseAssessment;
+            trackedResident.InitialRiskLevel = preservedInitialRiskLevel;
+            trackedResident.CurrentRiskLevel = preservedCurrentRiskLevel;
+            _db.Entry(trackedResident).Property(r => r.CaseStatus).IsModified = false;
+            _db.Entry(trackedResident).Property(r => r.CaseCategory).IsModified = false;
+            _db.Entry(trackedResident).Property(r => r.ReferralSource).IsModified = false;
+            _db.Entry(trackedResident).Property(r => r.ReintegrationType).IsModified = false;
+            _db.Entry(trackedResident).Property(r => r.ReintegrationStatus).IsModified = false;
+            _db.Entry(trackedResident).Property(r => r.BirthStatus).IsModified = false;
+            _db.Entry(trackedResident).Property(r => r.InitialCaseAssessment).IsModified = false;
+            _db.Entry(trackedResident).Property(r => r.InitialRiskLevel).IsModified = false;
+            _db.Entry(trackedResident).Property(r => r.CurrentRiskLevel).IsModified = false;
+
+            await _db.SaveChangesAsync(cancellationToken);
+
+            if (
+                !string.IsNullOrWhiteSpace(requestedCaseStatus) ||
+                !string.IsNullOrWhiteSpace(requestedCaseCategory) ||
+                !string.IsNullOrWhiteSpace(requestedReferralSource) ||
+                !string.IsNullOrWhiteSpace(requestedReintegrationType) ||
+                !string.IsNullOrWhiteSpace(requestedReintegrationStatus) ||
+                !string.IsNullOrWhiteSpace(requestedCurrentRiskLevel))
+            {
+                if (!string.IsNullOrWhiteSpace(requestedCaseStatus) && ValidCaseStatuses.Contains(requestedCaseStatus))
+                {
+                    await _db.Database.ExecuteSqlInterpolatedAsync(
+                        $"UPDATE residents SET case_status = CAST({requestedCaseStatus} AS case_status), date_closed = CASE WHEN CAST({requestedCaseStatus} AS case_status) = CAST({"Closed"} AS case_status) THEN CURRENT_DATE ELSE date_closed END WHERE resident_id = {trackedResident.ResidentId}",
+                        cancellationToken
+                    );
+                }
+                if (!string.IsNullOrWhiteSpace(requestedCaseCategory) && ValidCaseCategories.Contains(requestedCaseCategory))
+                {
+                    await _db.Database.ExecuteSqlInterpolatedAsync(
+                        $"UPDATE residents SET case_category = CAST({requestedCaseCategory} AS case_category) WHERE resident_id = {trackedResident.ResidentId}",
+                        cancellationToken
+                    );
+                }
+                if (!string.IsNullOrWhiteSpace(requestedReferralSource) && ValidReferralSources.Contains(requestedReferralSource))
+                {
+                    await _db.Database.ExecuteSqlInterpolatedAsync(
+                        $"UPDATE residents SET referral_source = CAST({requestedReferralSource} AS referral_source) WHERE resident_id = {trackedResident.ResidentId}",
+                        cancellationToken
+                    );
+                }
+                if (!string.IsNullOrWhiteSpace(requestedReintegrationType) && ValidReintegrationTypes.Contains(requestedReintegrationType))
+                {
+                    await _db.Database.ExecuteSqlInterpolatedAsync(
+                        $"UPDATE residents SET reintegration_type = CAST({requestedReintegrationType} AS reintegration_type) WHERE resident_id = {trackedResident.ResidentId}",
+                        cancellationToken
+                    );
+                }
+                if (!string.IsNullOrWhiteSpace(requestedReintegrationStatus) && ValidReintegrationStatuses.Contains(requestedReintegrationStatus))
+                {
+                    await _db.Database.ExecuteSqlInterpolatedAsync(
+                        $"UPDATE residents SET reintegration_status = CAST({requestedReintegrationStatus} AS reintegration_status) WHERE resident_id = {trackedResident.ResidentId}",
+                        cancellationToken
+                    );
+                }
+                if (!string.IsNullOrWhiteSpace(requestedCurrentRiskLevel) && ValidRiskLevels.Contains(requestedCurrentRiskLevel))
+                {
+                    await _db.Database.ExecuteSqlInterpolatedAsync(
+                        $"UPDATE residents SET current_risk_level = CAST({requestedCurrentRiskLevel} AS risk_level) WHERE resident_id = {trackedResident.ResidentId}",
+                        cancellationToken
+                    );
+                }
+                await _db.Entry(trackedResident).ReloadAsync(cancellationToken);
+            }
+
+            await _audit.LogAsync(userId, "Update", entity, id, oldJson, body.GetRawText(), HttpContext.Connection.RemoteIpAddress?.ToString(), HttpContext.TraceIdentifier, cancellationToken);
+            return Ok(trackedResident);
+        }
+
         object? updated = entity.ToLowerInvariant() switch
         {
             "users" when existing is LegacyUser => JsonSerializer.Deserialize<LegacyUser>(body, JsonOptions),
@@ -175,6 +446,11 @@ public class AdminApiController : ControllerBase
 
         _db.Entry(existing).State = EntityState.Detached;
         _db.Update(updated);
+        if (updated is Resident updatedResident)
+        {
+            // Keep current DB enum value for birth_status until enum-backed editing is implemented.
+            _db.Entry(updatedResident).Property(r => r.BirthStatus).IsModified = false;
+        }
         await _db.SaveChangesAsync(cancellationToken);
         await _audit.LogAsync(userId, "Update", entity, id, oldJson, body.GetRawText(), HttpContext.Connection.RemoteIpAddress?.ToString(), HttpContext.TraceIdentifier, cancellationToken);
         return Ok(updated);
