@@ -3,7 +3,6 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { fetchJson, type AuthMe } from '../api/client'
 
 const THEME_KEY = 'lh-theme'
-const THEME_COOKIE_KEY = 'lh_theme'
 const COOKIE_PREF_KEY = 'cookie_preferences_enabled'
 
 function navLinkClass(active: boolean) {
@@ -14,22 +13,9 @@ export function AppNav() {
   const [me, setMe] = useState<AuthMe>({ isAuthenticated: false, roles: [] })
   const navigate = useNavigate()
   const isAdmin = me.isAuthenticated && me.roles.includes('Admin')
-  const isDonor = me.isAuthenticated && me.roles.includes('Donor')
 
   function applyTheme(theme: 'light' | 'dark') {
     document.documentElement.setAttribute('data-bs-theme', theme)
-  }
-
-  function getCookieValue(name: string): string | null {
-    const value = document.cookie
-      .split('; ')
-      .find((row) => row.startsWith(`${name}=`))
-      ?.split('=')[1]
-    return value ? decodeURIComponent(value) : null
-  }
-
-  function setThemeCookie(theme: 'light' | 'dark') {
-    document.cookie = `${THEME_COOKIE_KEY}=${encodeURIComponent(theme)}; path=/; max-age=31536000; SameSite=Lax`
   }
 
   useEffect(() => {
@@ -39,16 +25,9 @@ export function AppNav() {
       applyTheme(prefersDark ? 'dark' : 'light')
       return
     }
-    const cookieTheme = getCookieValue(THEME_COOKIE_KEY)
-    if (cookieTheme === 'light' || cookieTheme === 'dark') {
-      applyTheme(cookieTheme)
-      localStorage.setItem(THEME_KEY, cookieTheme)
-      return
-    }
     const stored = localStorage.getItem(THEME_KEY)
     if (stored === 'light' || stored === 'dark') {
       applyTheme(stored)
-      setThemeCookie(stored)
       return
     }
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -82,7 +61,6 @@ export function AppNav() {
     const current = (localStorage.getItem(THEME_KEY) as 'light' | 'dark' | null) ?? 'light'
     const next = current === 'dark' ? 'light' : 'dark'
     localStorage.setItem(THEME_KEY, next)
-    setThemeCookie(next)
     applyTheme(next)
   }
 
@@ -121,27 +99,27 @@ export function AppNav() {
                   </NavLink>
                 </li>
                 {!isAdmin ? (
-                  <li className="nav-item">
-                    <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/about">
-                      About
-                    </NavLink>
-                  </li>
+                  <>
+                    <li className="nav-item">
+                      <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/about">
+                        About
+                      </NavLink>
+                    </li>
+                    <li className="nav-item">
+                      <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/contact">
+                        Contact
+                      </NavLink>
+                    </li>
+                  </>
                 ) : null}
-                {!isAdmin ? (
-                  <li className="nav-item">
-                    <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/contact">
-                      Contact
-                    </NavLink>
-                  </li>
-                ) : null}
-                {isDonor && !isAdmin ? (
+                {me.isAuthenticated && me.roles.includes('Donor') ? (
                   <li className="nav-item">
                     <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/Donor">
                       Dashboard
                     </NavLink>
                   </li>
                 ) : null}
-                {isAdmin ? (
+                {me.isAuthenticated && me.roles.includes('Admin') ? (
                   <>
                     <li className="nav-item">
                       <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/Admin">
@@ -151,6 +129,11 @@ export function AppNav() {
                     <li className="nav-item">
                       <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/Admin/DonorsContributions">
                         Contributions
+                      </NavLink>
+                    </li>
+                    <li className="nav-item">
+                      <NavLink className={({ isActive }) => navLinkClass(isActive)} to="/Admin/SocialMedia">
+                        Social Media
                       </NavLink>
                     </li>
                   </>

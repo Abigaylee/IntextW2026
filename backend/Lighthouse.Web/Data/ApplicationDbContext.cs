@@ -46,6 +46,11 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.HasPostgresEnum<ProgramArea>("program_area");
         modelBuilder.HasPostgresEnum<EmotionalState>("emotional_state");
         modelBuilder.HasPostgresEnum<SessionType>("session_type");
+        modelBuilder.HasPostgresEnum<CooperationLevel>("cooperation_level");
+        modelBuilder.HasPostgresEnum<VisitType>("visit_type");
+        modelBuilder.HasPostgresEnum<VisitOutcome>("visit_outcome");
+        modelBuilder.HasPostgresEnum<PlanCategory>("plan_category");
+        modelBuilder.HasPostgresEnum<PlanStatus>("plan_status");
 
         modelBuilder.Entity<ApplicationUser>(entity =>
         {
@@ -124,10 +129,17 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.Property(s => s.SafehouseId).HasColumnName("safehouse_id");
             entity.Property(s => s.SafehouseCode).HasColumnName("safehouse_code");
+            entity.Property(s => s.Name).HasColumnName("name");
+            entity.Property(s => s.Region).HasColumnName("region");
+            entity.Property(s => s.City).HasColumnName("city");
+            entity.Property(s => s.Province).HasColumnName("province");
+            entity.Property(s => s.Country).HasColumnName("country");
             entity.Property(s => s.OpenDate).HasColumnName("open_date");
+            entity.Property(s => s.Status).HasColumnName("status");
             entity.Property(s => s.CapacityGirls).HasColumnName("capacity_girls");
             entity.Property(s => s.CapacityStaff).HasColumnName("capacity_staff");
             entity.Property(s => s.CurrentOccupancy).HasColumnName("current_occupancy");
+            entity.Property(s => s.Notes).HasColumnName("notes");
         });
 
         modelBuilder.Entity<DonationAllocation>(entity =>
@@ -135,7 +147,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(a => a.AllocationId).HasColumnName("allocation_id");
             entity.Property(a => a.DonationId).HasColumnName("donation_id");
             entity.Property(a => a.SafehouseId).HasColumnName("safehouse_id");
-            entity.Property(a => a.ProgramArea).HasColumnName("program_area").HasColumnType("program_area");
+            entity.Property(a => a.ProgramArea).HasColumnName("program_area");
             entity.Property(a => a.AmountAllocated).HasColumnName("amount_allocated");
             entity.Property(a => a.AllocationDate).HasColumnName("allocation_date");
             entity.Property(a => a.AllocationNotes).HasColumnName("allocation_notes");
@@ -207,7 +219,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(r => r.CaseStatus).HasColumnName("case_status");
             entity.Property(r => r.Sex).HasColumnName("sex");
             entity.Property(r => r.DateOfBirth).HasColumnName("date_of_birth");
-            entity.Property(r => r.BirthStatus).HasColumnName("birth_status");
+            entity.Property(r => r.BirthStatus).HasColumnName("birth_status").HasColumnType("birth_status");
             entity.Property(r => r.PlaceOfBirth).HasColumnName("place_of_birth");
             entity.Property(r => r.Religion).HasColumnName("religion");
             entity.Property(r => r.CaseCategory).HasColumnName("case_category");
@@ -296,11 +308,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.Property(p => p.PlanId).HasColumnName("plan_id");
             entity.Property(p => p.ResidentId).HasColumnName("resident_id");
-            entity.Property(p => p.PlanCategory).HasColumnName("plan_category");
+            entity.Property(p => p.PlanCategory).HasColumnName("plan_category").HasColumnType("plan_category");
             entity.Property(p => p.PlanDescription).HasColumnName("plan_description");
             entity.Property(p => p.ServicesProvided).HasColumnName("services_provided");
             entity.Property(p => p.TargetValue).HasColumnName("target_value");
             entity.Property(p => p.TargetDate).HasColumnName("target_date");
+            entity.Property(p => p.Status).HasColumnName("status").HasColumnType("plan_status");
             entity.Property(p => p.CaseConferenceDate).HasColumnName("case_conference_date");
             entity.Property(p => p.CreatedAt).HasColumnName("created_at");
             entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
@@ -316,14 +329,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(v => v.ResidentId).HasColumnName("resident_id");
             entity.Property(v => v.VisitDate).HasColumnName("visit_date");
             entity.Property(v => v.SocialWorker).HasColumnName("social_worker");
-            entity.Property(v => v.VisitType).HasColumnName("visit_type");
+            entity.Property(v => v.VisitType).HasColumnName("visit_type").HasColumnType("visit_type");
             entity.Property(v => v.LocationVisited).HasColumnName("location_visited");
             entity.Property(v => v.FamilyMembersPresent).HasColumnName("family_members_present");
-            entity.Property(v => v.FamilyCooperationLevel).HasColumnName("family_cooperation_level");
+            entity.Property(v => v.Purpose).HasColumnName("purpose");
+            entity.Property(v => v.Observations).HasColumnName("observations");
+            entity.Property(v => v.FamilyCooperationLevel).HasColumnName("family_cooperation_level").HasColumnType("cooperation_level");
             entity.Property(v => v.SafetyConcernsNoted).HasColumnName("safety_concerns_noted");
             entity.Property(v => v.FollowUpNeeded).HasColumnName("follow_up_needed");
             entity.Property(v => v.FollowUpNotes).HasColumnName("follow_up_notes");
-            entity.Property(v => v.VisitOutcome).HasColumnName("visit_outcome");
+            entity.Property(v => v.VisitOutcome).HasColumnName("visit_outcome").HasColumnType("visit_outcome");
 
             entity.HasOne(v => v.Resident)
                 .WithMany(r => r.HomeVisitations)
@@ -336,10 +351,10 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(p => p.ResidentId).HasColumnName("resident_id");
             entity.Property(p => p.SessionDate).HasColumnName("session_date");
             entity.Property(p => p.SocialWorker).HasColumnName("social_worker");
-            entity.Property(p => p.SessionType).HasColumnName("session_type").HasColumnType("session_type");
+            entity.Property(p => p.SessionType).HasColumnName("session_type");
             entity.Property(p => p.SessionDurationMinutes).HasColumnName("session_duration_minutes");
-            entity.Property(p => p.EmotionalStateObserved).HasColumnName("emotional_state_observed").HasColumnType("emotional_state");
-            entity.Property(p => p.EmotionalStateEnd).HasColumnName("emotional_state_end").HasColumnType("emotional_state");
+            entity.Property(p => p.EmotionalStateObserved).HasColumnName("emotional_state_observed");
+            entity.Property(p => p.EmotionalStateEnd).HasColumnName("emotional_state_end");
             entity.Property(p => p.SessionNarrative).HasColumnName("session_narrative");
             entity.Property(p => p.InterventionsApplied).HasColumnName("interventions_applied");
             entity.Property(p => p.FollowUpActions).HasColumnName("follow_up_actions");
@@ -385,6 +400,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(m => m.ProcessRecordingCount).HasColumnName("process_recording_count");
             entity.Property(m => m.HomeVisitationCount).HasColumnName("home_visitation_count");
             entity.Property(m => m.IncidentCount).HasColumnName("incident_count");
+            entity.Property(m => m.Notes).HasColumnName("notes");
 
             entity.HasOne(m => m.Safehouse)
                 .WithMany()
@@ -395,6 +411,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         {
             entity.Property(s => s.SnapshotId).HasColumnName("snapshot_id");
             entity.Property(s => s.SnapshotDate).HasColumnName("snapshot_date");
+            entity.Property(s => s.Headline).HasColumnName("headline");
             entity.Property(s => s.SummaryText).HasColumnName("summary_text");
             entity.Property(s => s.MetricPayloadJson).HasColumnName("metric_payload_json");
             entity.Property(s => s.IsPublished).HasColumnName("is_published");

@@ -20,6 +20,7 @@ type Donation = {
   estimatedValue?: number
   createdAt?: string
   donationDate?: string
+  notes?: string | null
 }
 
 type Allocation = {
@@ -104,6 +105,15 @@ function formatAllocationAmount(amountAllocated: number | undefined, donationTyp
   return value.toLocaleString()
 }
 
+function normalizeCurrencyLike(value: number) {
+  return Math.max(0, Math.round(value * 100) / 100)
+}
+
+function toInputNumberString(value: number) {
+  const normalized = normalizeCurrencyLike(value)
+  return Number.isInteger(normalized) ? String(normalized) : normalized.toFixed(2)
+}
+
 export function AdminDonorsContributions() {
   const [supporters, setSupporters] = useState<Supporter[]>([])
   const [donations, setDonations] = useState<Donation[]>([])
@@ -123,7 +133,13 @@ export function AdminDonorsContributions() {
   const [editingAllocationId, setEditingAllocationId] = useState<number | null>(null)
   const [editingAllocationSafehouseId, setEditingAllocationSafehouseId] = useState('')
   const [editingAllocationProgramArea, setEditingAllocationProgramArea] = useState('')
-  const [viewMode, setViewMode] = useState<'supporters' | 'contributions'>('supporters')
+  const [viewMode, setViewMode] = useState<'supporters' | 'contributions' | 'needsAllocations'>('supporters')
+  const [contributionsPage, setContributionsPage] = useState(1)
+  const [supportersPage, setSupportersPage] = useState(1)
+  const [needsAllocationsPage, setNeedsAllocationsPage] = useState(1)
+  const [newAllocationSafehouseByDonation, setNewAllocationSafehouseByDonation] = useState<Record<number, string>>({})
+  const [newAllocationProgramAreaByDonation, setNewAllocationProgramAreaByDonation] = useState<Record<number, string>>({})
+  const [newAllocationAmountByDonation, setNewAllocationAmountByDonation] = useState<Record<number, string>>({})
   const [showSupporterModal, setShowSupporterModal] = useState(false)
   const [showDonationModal, setShowDonationModal] = useState(false)
   const [expandedDonations, setExpandedDonations] = useState<Set<number>>(new Set())
@@ -161,6 +177,12 @@ export function AdminDonorsContributions() {
       }),
     [supporterFilter, supporters],
   )
+  const supportersPerPage = 100
+  const totalSupportersPages = Math.max(1, Math.ceil(filteredSupporters.length / supportersPerPage))
+  const pagedSupporters = useMemo(() => {
+    const start = (supportersPage - 1) * supportersPerPage
+    return filteredSupporters.slice(start, start + supportersPerPage)
+  }, [filteredSupporters, supportersPage])
 
   const allocationsByDonation = useMemo(() => {
     const map = new Map<number, Allocation[]>()
@@ -246,6 +268,52 @@ export function AdminDonorsContributions() {
       }),
     [allocationsByDonation, contributionFilter, contributionSearch, donations, programAreaFilter, safehouseFilter, supporterById],
   )
+  const contributionsPerPage = 100
+  const totalContributionPages = Math.max(1, Math.ceil(filteredDonations.length / contributionsPerPage))
+  const pagedDonations = useMemo(() => {
+    const start = (contributionsPage - 1) * contributionsPerPage
+    return filteredDonations.slice(start, start + contributionsPerPage)
+  }, [contributionsPage, filteredDonations])
+
+  useEffect(() => {
+    if (contributionsPage > totalContributionPages) {
+      setContributionsPage(totalContributionPages)
+    }
+  }, [contributionsPage, totalContributionPages])
+
+  useEffect(() => {
+    if (supportersPage > totalSupportersPages) {
+      setSupportersPage(totalSupportersPages)
+    }
+  }, [supportersPage, totalSupportersPages])
+
+  const donationsNeedingAllocations = useMemo(
+    () =>
+      donations.filter((d) => {
+        if (!d.donationId) return false
+        const donationTotalRaw = Number(d.estimatedValue ?? d.amount ?? 0)
+        const donationTotal = Number.isFinite(donationTotalRaw) ? donationTotalRaw : 0
+        const allocatedTotal = (allocationsByDonation.get(d.donationId) ?? []).reduce((sum, a) => {
+          const value = Number(a.amountAllocated ?? 0)
+          return sum + (Number.isFinite(value) ? value : 0)
+        }, 0)
+        const remaining = donationTotal - allocatedTotal
+        return remaining > 0.000001
+      }),
+    [allocationsByDonation, donations],
+  )
+  const needsAllocationsPerPage = 100
+  const totalNeedsAllocationsPages = Math.max(1, Math.ceil(donationsNeedingAllocations.length / needsAllocationsPerPage))
+  const pagedNeedsAllocations = useMemo(() => {
+    const start = (needsAllocationsPage - 1) * needsAllocationsPerPage
+    return donationsNeedingAllocations.slice(start, start + needsAllocationsPerPage)
+  }, [donationsNeedingAllocations, needsAllocationsPage])
+
+  useEffect(() => {
+    if (needsAllocationsPage > totalNeedsAllocationsPages) {
+      setNeedsAllocationsPage(totalNeedsAllocationsPages)
+    }
+  }, [needsAllocationsPage, totalNeedsAllocationsPages])
 
   async function createSupporter() {
     try {
@@ -461,6 +529,61 @@ export function AdminDonorsContributions() {
     })
   }
 
+  async function createAllocationForDonation(d: Donation) {
+    const donationId = d.donationId
+    if (!donationId) return
+    const safehouseRaw = newAllocationSafehouseByDonation[donationId] ?? ''
+    const safehouseId = Number(safehouseRaw)
+    if (!Number.isFinite(safehouseId) || safehouseId <= 0) {
+      setErr('Safehouse ID is required and must be a positive number.')
+      return
+    }
+    const programAreaName = newAllocationProgramAreaByDonation[donationId] ?? 'Education'
+    const programArea = programAreaValueMap[programAreaName] ?? 0
+    const existingAllocations = allocationsByDonation.get(donationId) ?? []
+    const totalDonationAmount = Number(d.estimatedValue ?? d.amount ?? 0)
+    const alreadyAllocated = existingAllocations.reduce((sum, a) => {
+      const value = Number(a.amountAllocated ?? 0)
+      return sum + (Number.isFinite(value) ? value : 0)
+    }, 0)
+    const remainingAmount = normalizeCurrencyLike(totalDonationAmount - alreadyAllocated)
+    const defaultAmount = remainingAmount
+    const amountRaw = newAllocationAmountByDonation[donationId]
+    const amountAllocated = amountRaw != null && amountRaw.trim() !== '' ? Number(amountRaw) : defaultAmount
+    if (!Number.isFinite(amountAllocated) || amountAllocated <= 0) {
+      setErr('Allocation amount must be greater than zero.')
+      return
+    }
+    if (amountAllocated - remainingAmount > 0.000001) {
+      setErr('Allocation amount cannot exceed the remaining unallocated amount.')
+      return
+    }
+
+    try {
+      setBusy(true)
+      setErr(null)
+      await fetchJson('/api/admin/data/donation_allocations', {
+        method: 'POST',
+        body: JSON.stringify({
+          donationId,
+          safehouseId,
+          programArea,
+          amountAllocated,
+          allocationDate: new Date().toISOString().slice(0, 10),
+          allocationNotes: null,
+        }),
+      })
+      setSuccessMsg(`Allocation created for donation #${donationId}.`)
+      setNewAllocationSafehouseByDonation((prev) => ({ ...prev, [donationId]: '' }))
+      setNewAllocationAmountByDonation((prev) => ({ ...prev, [donationId]: '' }))
+      await load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to create allocation.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div>
       <h1 className="h3 mb-2">Donors & Contributions</h1>
@@ -471,7 +594,13 @@ export function AdminDonorsContributions() {
       <div className="card border-0 shadow-sm h-100">
         <div className="card-body">
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-            <h2 className="h5 mb-0">{viewMode === 'supporters' ? 'Supporters' : 'Contributions and allocations'}</h2>
+            <h2 className="h5 mb-0">
+              {viewMode === 'supporters'
+                ? 'Supporters'
+                : viewMode === 'contributions'
+                  ? 'Contributions and allocations'
+                  : 'Donations needing allocations'}
+            </h2>
             <div className="d-flex flex-wrap gap-2">
               <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowSupporterModal(true)}>
                 Add supporter
@@ -479,12 +608,14 @@ export function AdminDonorsContributions() {
               <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowDonationModal(true)}>
                 Add contribution
               </button>
-              <button
-                type="button"
-                className="btn btn-outline-secondary btn-sm"
-                onClick={() => setViewMode((m) => (m === 'supporters' ? 'contributions' : 'supporters'))}
-              >
-                {viewMode === 'supporters' ? 'View Contributions' : 'View Supporters'}
+              <button type="button" className={`btn btn-sm ${viewMode === 'supporters' ? 'btn-secondary' : 'btn-outline-secondary'}`} onClick={() => setViewMode('supporters')}>
+                Supporters
+              </button>
+              <button type="button" className={`btn btn-sm ${viewMode === 'contributions' ? 'btn-secondary' : 'btn-outline-secondary'}`} onClick={() => setViewMode('contributions')}>
+                Contributions
+              </button>
+              <button type="button" className={`btn btn-sm ${viewMode === 'needsAllocations' ? 'btn-secondary' : 'btn-outline-secondary'}`} onClick={() => setViewMode('needsAllocations')}>
+                Needs allocations
               </button>
             </div>
           </div>
@@ -493,14 +624,22 @@ export function AdminDonorsContributions() {
             <>
               <div className="row g-2 mb-2">
                 <div className="col-md-8">
-                  <input className="form-control form-control-sm" placeholder="Search name/email" value={supporterFilter} onChange={(e) => setSupporterFilter(e.target.value)} />
+                  <input
+                    className="form-control form-control-sm"
+                    placeholder="Search name/email"
+                    value={supporterFilter}
+                    onChange={(e) => {
+                      setSupporterFilter(e.target.value)
+                      setSupportersPage(1)
+                    }}
+                  />
                 </div>
               </div>
               <div className="table-responsive">
                 <table className="table table-sm">
                   <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Total money</th><th>Total hours</th><th>Last donation</th><th>Actions</th></tr></thead>
                   <tbody>
-                    {filteredSupporters.slice(0, 100).map((s) => (
+                    {pagedSupporters.map((s) => (
                       <tr key={s.supporterId ?? `${s.email}-${s.displayName}`}>
                         <td>{s.supporterId ?? '—'}</td>
                         <td>
@@ -573,9 +712,32 @@ export function AdminDonorsContributions() {
                   </tbody>
                 </table>
               </div>
+              <div className="d-flex align-items-center justify-content-between mt-2">
+                <div className="small text-secondary">
+                  Page {supportersPage} of {totalSupportersPages} ({filteredSupporters.length} supporters)
+                </div>
+                <div className="d-flex gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    disabled={supportersPage <= 1}
+                    onClick={() => setSupportersPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    disabled={supportersPage >= totalSupportersPages}
+                    onClick={() => setSupportersPage((p) => Math.min(totalSupportersPages, p + 1))}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
               {filteredSupporters.length === 0 ? <p className="small text-secondary mb-0">No supporter rows yet. Add one above.</p> : null}
             </>
-          ) : (
+          ) : viewMode === 'contributions' ? (
             <>
               <div className="row g-2 mb-2">
                 <div className="col-md-4">
@@ -583,11 +745,21 @@ export function AdminDonorsContributions() {
                     className="form-control form-control-sm"
                     placeholder="Search donations, donor, safehouse, program area"
                     value={contributionSearch}
-                    onChange={(e) => setContributionSearch(e.target.value)}
+                    onChange={(e) => {
+                      setContributionSearch(e.target.value)
+                      setContributionsPage(1)
+                    }}
                   />
                 </div>
                 <div className="col-md-6">
-                  <select className="form-select form-select-sm" value={contributionFilter} onChange={(e) => setContributionFilter(e.target.value)}>
+                  <select
+                    className="form-select form-select-sm"
+                    value={contributionFilter}
+                    onChange={(e) => {
+                      setContributionFilter(e.target.value)
+                      setContributionsPage(1)
+                    }}
+                  >
                     <option value="">All contribution types</option>
                     <option value="Monetary">Monetary</option>
                     <option value="InKind">In-kind</option>
@@ -597,7 +769,14 @@ export function AdminDonorsContributions() {
                   </select>
                 </div>
                 <div className="col-md-1">
-                  <select className="form-select form-select-sm" value={safehouseFilter} onChange={(e) => setSafehouseFilter(e.target.value)}>
+                  <select
+                    className="form-select form-select-sm"
+                    value={safehouseFilter}
+                    onChange={(e) => {
+                      setSafehouseFilter(e.target.value)
+                      setContributionsPage(1)
+                    }}
+                  >
                     <option value="">Safehouse</option>
                     {safehouseOptions.map((id) => (
                       <option key={id} value={id}>
@@ -607,7 +786,14 @@ export function AdminDonorsContributions() {
                   </select>
                 </div>
                 <div className="col-md-1">
-                  <select className="form-select form-select-sm" value={programAreaFilter} onChange={(e) => setProgramAreaFilter(e.target.value)}>
+                  <select
+                    className="form-select form-select-sm"
+                    value={programAreaFilter}
+                    onChange={(e) => {
+                      setProgramAreaFilter(e.target.value)
+                      setContributionsPage(1)
+                    }}
+                  >
                     <option value="">Program area</option>
                     {programAreaOptions.map((name) => (
                       <option key={name} value={name}>
@@ -619,9 +805,9 @@ export function AdminDonorsContributions() {
               </div>
               <div className="table-responsive mb-2">
                 <table className="table table-sm">
-                  <thead><tr><th>Donation</th><th>Donor</th><th>Type</th><th>Amount</th><th>Created</th><th>Allocations</th><th>Manage</th></tr></thead>
+                  <thead><tr><th>Donation</th><th>Donor</th><th>Type</th><th>Amount</th><th>Notes</th><th>Created</th><th>Allocations</th><th>Manage</th></tr></thead>
                   <tbody>
-                    {filteredDonations.slice(0, 100).map((d) => (
+                    {pagedDonations.map((d) => (
                       <Fragment key={`donation-${d.donationId ?? `${d.supporterId}-${d.createdAt}`}`}>
                         <tr key={d.donationId ?? `${d.supporterId}-${d.createdAt}`}>
                           <td>{d.donationId ?? '—'}</td>
@@ -641,6 +827,7 @@ export function AdminDonorsContributions() {
                               formatContributionAmount(d)
                             )}
                           </td>
+                          <td>{d.notes ?? '—'}</td>
                           <td>{d.createdAt ? String(d.createdAt).slice(0, 10) : '—'}</td>
                           <td>
                             {(() => {
@@ -699,7 +886,7 @@ export function AdminDonorsContributions() {
                         </tr>
                         {typeof d.donationId === 'number' && expandedDonations.has(d.donationId) ? (
                           <tr>
-                            <td colSpan={7} className="bg-light-subtle">
+                            <td colSpan={8} className="bg-light-subtle">
                               <div className="small fw-semibold mb-1">Allocation details</div>
                               <div className="table-responsive">
                                 <table className="table table-sm mb-0">
@@ -784,6 +971,143 @@ export function AdminDonorsContributions() {
                   </tbody>
                 </table>
               </div>
+              <div className="d-flex align-items-center justify-content-between mt-2">
+                <div className="small text-secondary">
+                  Page {contributionsPage} of {totalContributionPages} ({filteredDonations.length} contributions)
+                </div>
+                <div className="d-flex gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    disabled={contributionsPage <= 1}
+                    onClick={() => setContributionsPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    disabled={contributionsPage >= totalContributionPages}
+                    onClick={() => setContributionsPage((p) => Math.min(totalContributionPages, p + 1))}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="small text-secondary mb-2">Review contributions with unallocated amounts (including partial allocations), then assign the remaining balance below.</p>
+              <div className="table-responsive mb-2">
+                <table className="table table-sm">
+                  <thead>
+                    <tr><th>Donation</th><th>Donor</th><th>Type</th><th>Total amount</th><th>Allocated so far</th><th>Remaining</th><th>Created</th><th>Safehouse</th><th>Program area</th><th>Amount to allocate</th><th>Action</th></tr>
+                  </thead>
+                  <tbody>
+                    {pagedNeedsAllocations.map((d) => {
+                      const donationId = d.donationId ?? 0
+                      const donationAmount = Number(d.estimatedValue ?? d.amount ?? 0)
+                      const allocationRows = donationId ? allocationsByDonation.get(donationId) ?? [] : []
+                      const allocatedAmount = allocationRows.reduce((sum, a) => {
+                        const value = Number(a.amountAllocated ?? 0)
+                        return sum + (Number.isFinite(value) ? value : 0)
+                      }, 0)
+                      const remainingAmount = normalizeCurrencyLike(donationAmount - allocatedAmount)
+                      return (
+                        <tr key={`needs-allocation-${donationId}`}>
+                          <td>{d.donationId ?? '—'}</td>
+                          <td>{supporterName(d.supporterId)}</td>
+                          <td>{donationTypeLabel(d.donationType)}</td>
+                          <td>{formatContributionAmount(d)}</td>
+                          <td>{formatAllocationAmount(allocatedAmount, d.donationType)}</td>
+                          <td>{formatAllocationAmount(remainingAmount, d.donationType)}</td>
+                          <td>{d.createdAt ? String(d.createdAt).slice(0, 10) : '—'}</td>
+                          <td>
+                            <input
+                              className="form-control form-control-sm"
+                              style={{ maxWidth: 120 }}
+                              type="number"
+                              min={1}
+                              placeholder="ID"
+                              value={newAllocationSafehouseByDonation[donationId] ?? ''}
+                              onChange={(e) => setNewAllocationSafehouseByDonation((prev) => ({ ...prev, [donationId]: e.target.value }))}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              className="form-select form-select-sm"
+                              value={newAllocationProgramAreaByDonation[donationId] ?? 'Education'}
+                              onChange={(e) => setNewAllocationProgramAreaByDonation((prev) => ({ ...prev, [donationId]: e.target.value }))}
+                            >
+                              {Object.values(programAreaLabelMap).map((label) => (
+                                <option key={label} value={label}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              className="form-control form-control-sm"
+                              style={{ maxWidth: 150 }}
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              placeholder={Number.isFinite(remainingAmount) ? toInputNumberString(remainingAmount) : 'Amount'}
+                              value={newAllocationAmountByDonation[donationId] ?? ''}
+                              onChange={(e) => setNewAllocationAmountByDonation((prev) => ({ ...prev, [donationId]: e.target.value }))}
+                            />
+                          </td>
+                          <td>
+                            <div className="d-flex gap-1">
+                              <button
+                                type="button"
+                                className="btn btn-outline-secondary btn-sm"
+                                disabled={busy || remainingAmount <= 0}
+                                onClick={() =>
+                                  setNewAllocationAmountByDonation((prev) => ({
+                                    ...prev,
+                                    [donationId]: toInputNumberString(remainingAmount),
+                                  }))
+                                }
+                              >
+                                Use remaining
+                              </button>
+                              <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => createAllocationForDonation(d)}>
+                                Assign
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="d-flex align-items-center justify-content-between mt-2">
+                <div className="small text-secondary">
+                  Page {needsAllocationsPage} of {totalNeedsAllocationsPages} ({donationsNeedingAllocations.length} donations needing allocations)
+                </div>
+                <div className="d-flex gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    disabled={needsAllocationsPage <= 1}
+                    onClick={() => setNeedsAllocationsPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    disabled={needsAllocationsPage >= totalNeedsAllocationsPages}
+                    onClick={() => setNeedsAllocationsPage((p) => Math.min(totalNeedsAllocationsPages, p + 1))}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+              {donationsNeedingAllocations.length === 0 ? <p className="small text-secondary mb-0">No donations are currently waiting for allocation.</p> : null}
             </>
           )}
         </div>

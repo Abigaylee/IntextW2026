@@ -61,6 +61,30 @@ public enum ImpactUnit
     [PgName("campaigns")] campaigns
 }
 
+public enum PhRegion
+{
+    [PgName("NCR")] NCR,
+    [PgName("CAR")] CAR,
+    [PgName("RegionI")] RegionI,
+    [PgName("RegionII")] RegionII,
+    [PgName("RegionIII")] RegionIII,
+    [PgName("RegionIVA")] RegionIVA,
+    [PgName("RegionIVB")] RegionIVB,
+    [PgName("RegionV")] RegionV,
+    [PgName("RegionVI")] RegionVI,
+    [PgName("RegionVII")] RegionVII,
+    [PgName("RegionVIII")] RegionVIII,
+    [PgName("RegionIX")] RegionIX,
+    [PgName("RegionX")] RegionX,
+    [PgName("RegionXI")] RegionXI,
+    [PgName("RegionXII")] RegionXII,
+    [PgName("RegionXIII")] RegionXIII,
+    [PgName("BARMM")] BARMM,
+    [PgName("Luzon")] Luzon,
+    [PgName("Visayas")] Visayas,
+    [PgName("Mindanao")] Mindanao
+}
+
 public enum ProgramArea
 {
     [PgName("Education")] Education,
@@ -89,26 +113,43 @@ public enum SessionType
     [PgName("Group")] Group
 }
 
-public enum PhRegion
+public enum CooperationLevel
 {
-    [PgName("NCR")] NCR,
-    [PgName("CAR")] CAR,
-    [PgName("RegionI")] RegionI,
-    [PgName("RegionII")] RegionII,
-    [PgName("RegionIII")] RegionIII,
-    [PgName("RegionIVA")] RegionIVA,
-    [PgName("RegionIVB")] RegionIVB,
-    [PgName("RegionV")] RegionV,
-    [PgName("RegionVI")] RegionVI,
-    [PgName("RegionVII")] RegionVII,
-    [PgName("RegionVIII")] RegionVIII,
-    [PgName("RegionIX")] RegionIX,
-    [PgName("RegionX")] RegionX,
-    [PgName("RegionXI")] RegionXI,
-    [PgName("RegionXII")] RegionXII,
-    [PgName("RegionXIII")] RegionXIII,
-    [PgName("BARMM")] BARMM,
-    [PgName("Luzon")] Luzon,
-    [PgName("Visayas")] Visayas,
-    [PgName("Mindanao")] Mindanao
+    [PgName("Highly Cooperative")] HighlyCooperative,
+    [PgName("Cooperative")] Cooperative,
+    [PgName("Neutral")] Neutral,
+    [PgName("Uncooperative")] Uncooperative
+}
+
+public enum VisitType
+{
+    [PgName("Initial Assessment")] InitialAssessment,
+    [PgName("Routine Follow-Up")] RoutineFollowUp,
+    [PgName("Reintegration Assessment")] ReintegrationAssessment,
+    [PgName("Post-Placement Monitoring")] PostPlacementMonitoring,
+    [PgName("Emergency")] Emergency
+}
+
+public enum VisitOutcome
+{
+    [PgName("Favorable")] Favorable,
+    [PgName("Inconclusive")] Inconclusive,
+    [PgName("Needs Improvement")] NeedsImprovement,
+    [PgName("Unfavorable")] Unfavorable
+}
+
+public enum PlanCategory
+{
+    [PgName("Safety")] Safety,
+    [PgName("Education")] Education,
+    [PgName("Physical Health")] PhysicalHealth
+}
+
+public enum PlanStatus
+{
+    [PgName("Open")] Open,
+    [PgName("In Progress")] InProgress,
+    [PgName("On Hold")] OnHold,
+    [PgName("Achieved")] Achieved,
+    [PgName("Closed")] Closed
 }

@@ -14,7 +14,8 @@ public class DonationAllocation
     public int SafehouseId { get; set; }
     public Safehouse Safehouse { get; set; } = null!;
 
-    public ProgramArea ProgramArea { get; set; }
+    [MaxLength(30)]
+    public string ProgramArea { get; set; } = string.Empty;
 
     [Column(TypeName = "numeric(12,2)")]
     public decimal AmountAllocated { get; set; }

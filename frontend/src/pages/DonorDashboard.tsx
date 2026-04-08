@@ -11,6 +11,12 @@ type Summary = {
 type DonationHistoryRow = {
   donationDate: string
   amount: number
+  notes?: string | null
+}
+
+type DonateResponse = {
+  donationId: number
+  message?: string
 }
 
 export function DonorDashboard() {
@@ -18,7 +24,6 @@ export function DonorDashboard() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [monthlyAmount, setMonthlyAmount] = useState(25)
-  const [recurringEnabled, setRecurringEnabled] = useState(false)
   const [notes, setNotes] = useState('')
   const [isSubmittingDonation, setIsSubmittingDonation] = useState(false)
   const [donationMsg, setDonationMsg] = useState<string | null>(null)
@@ -52,19 +57,19 @@ export function DonorDashboard() {
     setDonationMsg(null)
     setErr(null)
     try {
-      await fetchJson('/api/donor/donate', {
+      const donateResult = await fetchJson<DonateResponse>('/api/donor/donate', {
         method: 'POST',
         body: JSON.stringify({
           amount: monthlyAmount,
           notes: notes.trim() || null,
-          isRecurring: recurringEnabled,
+          isRecurring: false,
         }),
       })
       const refreshed = await fetchJson<Summary>('/api/donor/summary')
       const refreshedHistory = await fetchJson<DonationHistoryRow[]>('/api/donor/history')
       setSummary(refreshed)
       setHistory(refreshedHistory)
-      setDonationMsg('Donation recorded successfully.')
+      setDonationMsg(donateResult.message ?? 'Donation recorded successfully.')
       setNotes('')
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Could not submit donation.')
@@ -88,8 +93,17 @@ export function DonorDashboard() {
         <div className="lh-kpi-card lh-kpi-deep">
           <div className="d-flex justify-content-between align-items-start">
             <div>
-              <div className="small opacity-90">Total estimated (PHP)</div>
-              <div className="lh-kpi-value mt-1">{summary ? summary.totalEstimated.toFixed(0) : '—'}</div>
+              <div className="small opacity-90">Total (USD)</div>
+              <div className="lh-kpi-value mt-1">
+                {summary
+                  ? summary.totalEstimated.toLocaleString(undefined, {
+                      style: 'currency',
+                      currency: 'USD',
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : '—'}
+              </div>
               <div className="lh-kpi-meta mt-1">From linked supporter record</div>
             </div>
             <span className="fs-4">&#36;</span>
@@ -98,8 +112,8 @@ export function DonorDashboard() {
         <div className="lh-kpi-card">
           <div className="d-flex justify-content-between align-items-start">
             <div>
-              <div className="text-secondary small">Gifts recorded</div>
-              <div className="lh-kpi-value text-dark mt-1">{summary?.count ?? '—'}</div>
+              <div className="lh-kpi-label small">Gifts recorded</div>
+              <div className="lh-kpi-value lh-kpi-value-strong mt-1">{summary?.count ?? '—'}</div>
               <div className="lh-kpi-meta text-success small mt-1">All time</div>
             </div>
             <span className="text-primary fs-4">&#9829;</span>
@@ -108,8 +122,8 @@ export function DonorDashboard() {
         <div className="lh-kpi-card">
           <div className="d-flex justify-content-between align-items-start">
             <div>
-              <div className="text-secondary small">Days since last gift</div>
-              <div className="lh-kpi-value text-dark mt-1">{summary?.daysSinceLastDonation ?? '—'}</div>
+              <div className="lh-kpi-label small">Days since last gift</div>
+              <div className="lh-kpi-value lh-kpi-value-strong mt-1">{summary?.daysSinceLastDonation ?? '—'}</div>
               <div className="lh-kpi-meta text-warning small mt-1">Recency signal</div>
             </div>
             <span className="text-secondary fs-4">&#9201;</span>
@@ -125,7 +139,7 @@ export function DonorDashboard() {
             <div className="row g-3 align-items-end">
               <div className="col-sm-6">
                 <label className="form-label small text-secondary mb-1" htmlFor="monthlyAmount">
-                  Donation amount (PHP)
+                  Donation amount (USD)
                 </label>
                 <input
                   id="monthlyAmount"
@@ -135,20 +149,6 @@ export function DonorDashboard() {
                   value={monthlyAmount}
                   onChange={(e) => setMonthlyAmount(Number(e.target.value || 0))}
                 />
-              </div>
-              <div className="col-sm-6">
-                <div className="form-check">
-                  <input
-                    id="isRecurring"
-                    className="form-check-input"
-                    type="checkbox"
-                    checked={recurringEnabled}
-                    onChange={(e) => setRecurringEnabled(e.target.checked)}
-                  />
-                  <label className="form-check-label small text-secondary" htmlFor="isRecurring">
-                    Mark as recurring
-                  </label>
-                </div>
               </div>
               <div className="col-12">
                 <label className="form-label small text-secondary mb-1" htmlFor="donationNotes">
@@ -177,19 +177,21 @@ export function DonorDashboard() {
             {history.length === 0 ? (
               <p className="small text-secondary mb-0">No donations recorded yet.</p>
             ) : (
-              <div className="table-responsive">
+              <div className="table-responsive overflow-auto" style={{ maxHeight: 320 }}>
                 <table className="table table-sm mb-0">
                   <thead>
                     <tr>
                       <th>Date</th>
-                      <th className="text-end">Amount (PHP)</th>
+                      <th className="text-end">Amount (USD)</th>
+                      <th>Notes</th>
                     </tr>
                   </thead>
                   <tbody>
                     {history.map((row, idx) => (
                       <tr key={`${row.donationDate}-${idx}`}>
-                        <td>{row.donationDate}</td>
+                        <td className="text-nowrap">{row.donationDate}</td>
                         <td className="text-end">{row.amount.toFixed(2)}</td>
+                        <td>{row.notes ?? '—'}</td>
                       </tr>
                     ))}
                   </tbody>
