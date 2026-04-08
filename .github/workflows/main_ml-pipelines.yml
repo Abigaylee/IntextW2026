@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'ml-service/**'
   workflow_dispatch:
 
 jobs:
@@ -15,11 +17,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate dependencies
+        run: |
+          cd ml-service
+          pip install -r requirements.txt
+
       - name: Upload ml-service artifact
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: ml-service/    # Just upload the folder, nothing else
+          path: ml-service/
 
   deploy:
     runs-on: ubuntu-latest
