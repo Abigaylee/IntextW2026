@@ -104,6 +104,15 @@ function formatAllocationAmount(amountAllocated: number | undefined, donationTyp
   return value.toLocaleString()
 }
 
+function normalizeCurrencyLike(value: number) {
+  return Math.max(0, Math.round(value * 100) / 100)
+}
+
+function toInputNumberString(value: number) {
+  const normalized = normalizeCurrencyLike(value)
+  return Number.isInteger(normalized) ? String(normalized) : normalized.toFixed(2)
+}
+
 export function AdminDonorsContributions() {
   const [supporters, setSupporters] = useState<Supporter[]>([])
   const [donations, setDonations] = useState<Donation[]>([])
@@ -123,7 +132,10 @@ export function AdminDonorsContributions() {
   const [editingAllocationId, setEditingAllocationId] = useState<number | null>(null)
   const [editingAllocationSafehouseId, setEditingAllocationSafehouseId] = useState('')
   const [editingAllocationProgramArea, setEditingAllocationProgramArea] = useState('')
-  const [viewMode, setViewMode] = useState<'supporters' | 'contributions'>('supporters')
+  const [viewMode, setViewMode] = useState<'supporters' | 'contributions' | 'needsAllocations'>('supporters')
+  const [newAllocationSafehouseByDonation, setNewAllocationSafehouseByDonation] = useState<Record<number, string>>({})
+  const [newAllocationProgramAreaByDonation, setNewAllocationProgramAreaByDonation] = useState<Record<number, string>>({})
+  const [newAllocationAmountByDonation, setNewAllocationAmountByDonation] = useState<Record<number, string>>({})
   const [showSupporterModal, setShowSupporterModal] = useState(false)
   const [showDonationModal, setShowDonationModal] = useState(false)
   const [expandedDonations, setExpandedDonations] = useState<Set<number>>(new Set())
@@ -245,6 +257,22 @@ export function AdminDonorsContributions() {
         return typeOk && safehouseOk && programOk && searchOk
       }),
     [allocationsByDonation, contributionFilter, contributionSearch, donations, programAreaFilter, safehouseFilter, supporterById],
+  )
+
+  const donationsNeedingAllocations = useMemo(
+    () =>
+      donations.filter((d) => {
+        if (!d.donationId) return false
+        const donationTotalRaw = Number(d.estimatedValue ?? d.amount ?? 0)
+        const donationTotal = Number.isFinite(donationTotalRaw) ? donationTotalRaw : 0
+        const allocatedTotal = (allocationsByDonation.get(d.donationId) ?? []).reduce((sum, a) => {
+          const value = Number(a.amountAllocated ?? 0)
+          return sum + (Number.isFinite(value) ? value : 0)
+        }, 0)
+        const remaining = donationTotal - allocatedTotal
+        return remaining > 0.000001
+      }),
+    [allocationsByDonation, donations],
   )
 
   async function createSupporter() {
@@ -461,6 +489,61 @@ export function AdminDonorsContributions() {
     })
   }
 
+  async function createAllocationForDonation(d: Donation) {
+    const donationId = d.donationId
+    if (!donationId) return
+    const safehouseRaw = newAllocationSafehouseByDonation[donationId] ?? ''
+    const safehouseId = Number(safehouseRaw)
+    if (!Number.isFinite(safehouseId) || safehouseId <= 0) {
+      setErr('Safehouse ID is required and must be a positive number.')
+      return
+    }
+    const programAreaName = newAllocationProgramAreaByDonation[donationId] ?? 'Education'
+    const programArea = programAreaValueMap[programAreaName] ?? 0
+    const existingAllocations = allocationsByDonation.get(donationId) ?? []
+    const totalDonationAmount = Number(d.estimatedValue ?? d.amount ?? 0)
+    const alreadyAllocated = existingAllocations.reduce((sum, a) => {
+      const value = Number(a.amountAllocated ?? 0)
+      return sum + (Number.isFinite(value) ? value : 0)
+    }, 0)
+    const remainingAmount = normalizeCurrencyLike(totalDonationAmount - alreadyAllocated)
+    const defaultAmount = remainingAmount
+    const amountRaw = newAllocationAmountByDonation[donationId]
+    const amountAllocated = amountRaw != null && amountRaw.trim() !== '' ? Number(amountRaw) : defaultAmount
+    if (!Number.isFinite(amountAllocated) || amountAllocated <= 0) {
+      setErr('Allocation amount must be greater than zero.')
+      return
+    }
+    if (amountAllocated - remainingAmount > 0.000001) {
+      setErr('Allocation amount cannot exceed the remaining unallocated amount.')
+      return
+    }
+
+    try {
+      setBusy(true)
+      setErr(null)
+      await fetchJson('/api/admin/data/donation_allocations', {
+        method: 'POST',
+        body: JSON.stringify({
+          donationId,
+          safehouseId,
+          programArea,
+          amountAllocated,
+          allocationDate: new Date().toISOString().slice(0, 10),
+          allocationNotes: null,
+        }),
+      })
+      setSuccessMsg(`Allocation created for donation #${donationId}.`)
+      setNewAllocationSafehouseByDonation((prev) => ({ ...prev, [donationId]: '' }))
+      setNewAllocationAmountByDonation((prev) => ({ ...prev, [donationId]: '' }))
+      await load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Failed to create allocation.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div>
       <h1 className="h3 mb-2">Donors & Contributions</h1>
@@ -471,7 +554,13 @@ export function AdminDonorsContributions() {
       <div className="card border-0 shadow-sm h-100">
         <div className="card-body">
           <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-            <h2 className="h5 mb-0">{viewMode === 'supporters' ? 'Supporters' : 'Contributions and allocations'}</h2>
+            <h2 className="h5 mb-0">
+              {viewMode === 'supporters'
+                ? 'Supporters'
+                : viewMode === 'contributions'
+                  ? 'Contributions and allocations'
+                  : 'Donations needing allocations'}
+            </h2>
             <div className="d-flex flex-wrap gap-2">
               <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowSupporterModal(true)}>
                 Add supporter
@@ -479,12 +568,14 @@ export function AdminDonorsContributions() {
               <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowDonationModal(true)}>
                 Add contribution
               </button>
-              <button
-                type="button"
-                className="btn btn-outline-secondary btn-sm"
-                onClick={() => setViewMode((m) => (m === 'supporters' ? 'contributions' : 'supporters'))}
-              >
-                {viewMode === 'supporters' ? 'View Contributions' : 'View Supporters'}
+              <button type="button" className={`btn btn-sm ${viewMode === 'supporters' ? 'btn-secondary' : 'btn-outline-secondary'}`} onClick={() => setViewMode('supporters')}>
+                Supporters
+              </button>
+              <button type="button" className={`btn btn-sm ${viewMode === 'contributions' ? 'btn-secondary' : 'btn-outline-secondary'}`} onClick={() => setViewMode('contributions')}>
+                Contributions
+              </button>
+              <button type="button" className={`btn btn-sm ${viewMode === 'needsAllocations' ? 'btn-secondary' : 'btn-outline-secondary'}`} onClick={() => setViewMode('needsAllocations')}>
+                Needs allocations
               </button>
             </div>
           </div>
@@ -575,7 +666,7 @@ export function AdminDonorsContributions() {
               </div>
               {filteredSupporters.length === 0 ? <p className="small text-secondary mb-0">No supporter rows yet. Add one above.</p> : null}
             </>
-          ) : (
+          ) : viewMode === 'contributions' ? (
             <>
               <div className="row g-2 mb-2">
                 <div className="col-md-4">
@@ -784,6 +875,97 @@ export function AdminDonorsContributions() {
                   </tbody>
                 </table>
               </div>
+            </>
+          ) : (
+            <>
+              <p className="small text-secondary mb-2">Review contributions with unallocated amounts (including partial allocations), then assign the remaining balance below.</p>
+              <div className="table-responsive mb-2">
+                <table className="table table-sm">
+                  <thead>
+                    <tr><th>Donation</th><th>Donor</th><th>Type</th><th>Total amount</th><th>Allocated so far</th><th>Remaining</th><th>Created</th><th>Safehouse</th><th>Program area</th><th>Amount to allocate</th><th>Action</th></tr>
+                  </thead>
+                  <tbody>
+                    {donationsNeedingAllocations.slice(0, 150).map((d) => {
+                      const donationId = d.donationId ?? 0
+                      const donationAmount = Number(d.estimatedValue ?? d.amount ?? 0)
+                      const allocationRows = donationId ? allocationsByDonation.get(donationId) ?? [] : []
+                      const allocatedAmount = allocationRows.reduce((sum, a) => {
+                        const value = Number(a.amountAllocated ?? 0)
+                        return sum + (Number.isFinite(value) ? value : 0)
+                      }, 0)
+                      const remainingAmount = normalizeCurrencyLike(donationAmount - allocatedAmount)
+                      return (
+                        <tr key={`needs-allocation-${donationId}`}>
+                          <td>{d.donationId ?? '—'}</td>
+                          <td>{supporterName(d.supporterId)}</td>
+                          <td>{donationTypeLabel(d.donationType)}</td>
+                          <td>{formatContributionAmount(d)}</td>
+                          <td>{formatAllocationAmount(allocatedAmount, d.donationType)}</td>
+                          <td>{formatAllocationAmount(remainingAmount, d.donationType)}</td>
+                          <td>{d.createdAt ? String(d.createdAt).slice(0, 10) : '—'}</td>
+                          <td>
+                            <input
+                              className="form-control form-control-sm"
+                              style={{ maxWidth: 120 }}
+                              type="number"
+                              min={1}
+                              placeholder="ID"
+                              value={newAllocationSafehouseByDonation[donationId] ?? ''}
+                              onChange={(e) => setNewAllocationSafehouseByDonation((prev) => ({ ...prev, [donationId]: e.target.value }))}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              className="form-select form-select-sm"
+                              value={newAllocationProgramAreaByDonation[donationId] ?? 'Education'}
+                              onChange={(e) => setNewAllocationProgramAreaByDonation((prev) => ({ ...prev, [donationId]: e.target.value }))}
+                            >
+                              {Object.values(programAreaLabelMap).map((label) => (
+                                <option key={label} value={label}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              className="form-control form-control-sm"
+                              style={{ maxWidth: 150 }}
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              placeholder={Number.isFinite(remainingAmount) ? toInputNumberString(remainingAmount) : 'Amount'}
+                              value={newAllocationAmountByDonation[donationId] ?? ''}
+                              onChange={(e) => setNewAllocationAmountByDonation((prev) => ({ ...prev, [donationId]: e.target.value }))}
+                            />
+                          </td>
+                          <td>
+                            <div className="d-flex gap-1">
+                              <button
+                                type="button"
+                                className="btn btn-outline-secondary btn-sm"
+                                disabled={busy || remainingAmount <= 0}
+                                onClick={() =>
+                                  setNewAllocationAmountByDonation((prev) => ({
+                                    ...prev,
+                                    [donationId]: toInputNumberString(remainingAmount),
+                                  }))
+                                }
+                              >
+                                Use remaining
+                              </button>
+                              <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => createAllocationForDonation(d)}>
+                                Assign
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {donationsNeedingAllocations.length === 0 ? <p className="small text-secondary mb-0">No donations are currently waiting for allocation.</p> : null}
             </>
           )}
         </div>

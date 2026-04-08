@@ -692,6 +692,10 @@ body.lh-body {
   opacity: 0.9;
 }
 
+.lh-kpi-label {
+  color: var(--lh-muted);
+}
+
 .lh-kpi-icon {
   opacity: 0.95;
 }
@@ -1125,6 +1129,10 @@ body.lh-body {
 [data-bs-theme="dark"] a:not(.btn):not(.nav-link):not(.dropdown-item),
 [data-bs-theme="dark"] .btn-link {
   color: var(--lh-primary) !important;
+}
+
+[data-bs-theme="dark"] .lh-kpi-label {
+  color: #cbd5e1;
 }
 
 [data-bs-theme="dark"] a:not(.btn):not(.nav-link):not(.dropdown-item):hover,

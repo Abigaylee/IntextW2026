@@ -58,7 +58,8 @@ public class DonationAnalyticsService
             .ThenByDescending(d => d.CreatedAt)
             .Select(d => new DonationHistoryRow(
                 d.DonationDate,
-                d.Amount ?? d.EstimatedValue ?? 0))
+                d.Amount ?? d.EstimatedValue ?? 0,
+                d.Notes))
             .ToListAsync(cancellationToken);
     }
 }
@@ -66,4 +67,4 @@ public class DonationAnalyticsService
 public record DonorSummaryDto(int Count, decimal TotalEstimated, DateOnly? LastDonationDate, int? DaysSinceLastDonation);
 
 public record MonthlyDonationPoint(string Month, decimal Total);
-public record DonationHistoryRow(DateOnly DonationDate, decimal Amount);
+public record DonationHistoryRow(DateOnly DonationDate, decimal Amount, string? Notes);
