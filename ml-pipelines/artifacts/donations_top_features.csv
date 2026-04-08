@@ -1,0 +1,16 @@
+feature,importance
+num__donation_month,0.23094098532498367
+cat__donation_type_Monetary,0.1569728939345742
+cat__impact_unit_pesos,0.15546038615864358
+num__donation_year,0.10102656472563505
+num__is_recurring,0.06192481432914661
+cat__channel_source_Direct,0.04919165012097144
+cat__donation_type_InKind,0.04535374168342443
+cat__channel_source_Campaign,0.03960731507989818
+cat__impact_unit_items,0.036290321730443886
+cat__channel_source_Event,0.03183299789726037
+cat__campaign_name_Year-End Hope,0.017092548088808137
+cat__channel_source_PartnerReferral,0.016751224237551588
+num__has_social_referral,0.014456055851409995
+cat__campaign_name_GivingTuesday,0.014276606000827242
+cat__channel_source_SocialMedia,0.014163303191644258

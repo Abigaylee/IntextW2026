@@ -1,0 +1,16 @@
+{
+  "pipeline": "donations",
+  "task": "regression",
+  "target": "estimated_value (regression; mixed units in source data)",
+  "feature_columns": [
+    "donation_type",
+    "is_recurring",
+    "campaign_name",
+    "channel_source",
+    "currency_code",
+    "impact_unit",
+    "donation_year",
+    "donation_month",
+    "has_social_referral"
+  ]
+}
