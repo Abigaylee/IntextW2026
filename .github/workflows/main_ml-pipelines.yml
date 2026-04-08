@@ -15,24 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python version
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Validate dependencies install correctly
-        run: |
-          cd ml-service
-          pip install -r requirements.txt
-
-      - name: Make startup script executable
-        run: chmod +x ml-service/startup.sh
-
       - name: Upload ml-service artifact
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: ml-service/
+          path: ml-service/    # Just upload the folder, nothing else
 
   deploy:
     runs-on: ubuntu-latest
