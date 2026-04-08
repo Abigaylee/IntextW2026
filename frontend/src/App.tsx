@@ -1,6 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppNav } from './components/AppNav'
-import { AppFooter } from './components/AppFooter'
 import { CookieBanner } from './components/CookieBanner'
 import { RequireRole } from './components/RequireRole'
 import { RequireAuth } from './components/RequireAuth'
@@ -26,6 +25,7 @@ import { Login } from './pages/Login'
 import { Register } from './pages/Register'
 import { Unauthorized } from './pages/Unauthorized'
 import { SecuritySettings } from './pages/SecuritySettings'
+import { SocialMedia } from './pages/SocialMedia'
 import './App.css'
 
 export default function App() {
@@ -56,11 +56,30 @@ export default function App() {
           <Route path="/Admin/CaseloadInventory" element={<RequireRole role="Admin"><AdminCaseloadInventory /></RequireRole>} />
           <Route path="/Admin/ProcessRecording" element={<RequireRole role="Admin"><AdminProcessRecording /></RequireRole>} />
           <Route path="/Admin/HomeVisitationConferences" element={<RequireRole role="Admin"><AdminHomeVisitationConferences /></RequireRole>} />
+          <Route path="/Admin/SocialMedia" element={<RequireRole role="Admin"><SocialMedia /></RequireRole>} />
           <Route path="/unauthorized" element={<Unauthorized />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      <AppFooter />
+      <footer className="lh-footer py-4 mt-auto small">
+        <div className="container d-flex flex-wrap justify-content-between align-items-center gap-2 text-secondary">
+          <span>&copy; {new Date().getUTCFullYear()} Light on a Hill Foundation</span>
+          <div className="d-flex flex-wrap align-items-center gap-2">
+            <a className="lh-social-link" href="#" aria-label="Facebook (placeholder)">
+              Facebook
+            </a>
+            <a className="lh-social-link" href="#" aria-label="Instagram (placeholder)">
+              Instagram
+            </a>
+            <a className="lh-social-link" href="#" aria-label="YouTube (placeholder)">
+              YouTube
+            </a>
+            <a className="text-secondary" href="/privacy">
+              Privacy
+            </a>
+          </div>
+        </div>
+      </footer>
     </BrowserRouter>
   )
 }

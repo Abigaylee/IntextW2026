@@ -61,6 +61,30 @@ public enum ImpactUnit
     [PgName("campaigns")] campaigns
 }
 
+public enum PhRegion
+{
+    [PgName("NCR")] NCR,
+    [PgName("CAR")] CAR,
+    [PgName("RegionI")] RegionI,
+    [PgName("RegionII")] RegionII,
+    [PgName("RegionIII")] RegionIII,
+    [PgName("RegionIVA")] RegionIVA,
+    [PgName("RegionIVB")] RegionIVB,
+    [PgName("RegionV")] RegionV,
+    [PgName("RegionVI")] RegionVI,
+    [PgName("RegionVII")] RegionVII,
+    [PgName("RegionVIII")] RegionVIII,
+    [PgName("RegionIX")] RegionIX,
+    [PgName("RegionX")] RegionX,
+    [PgName("RegionXI")] RegionXI,
+    [PgName("RegionXII")] RegionXII,
+    [PgName("RegionXIII")] RegionXIII,
+    [PgName("BARMM")] BARMM,
+    [PgName("Luzon")] Luzon,
+    [PgName("Visayas")] Visayas,
+    [PgName("Mindanao")] Mindanao
+}
+
 public enum ProgramArea
 {
     [PgName("Education")] Education,
@@ -87,28 +111,4 @@ public enum SessionType
 {
     [PgName("Individual")] Individual,
     [PgName("Group")] Group
-}
-
-public enum PhRegion
-{
-    [PgName("NCR")] NCR,
-    [PgName("CAR")] CAR,
-    [PgName("RegionI")] RegionI,
-    [PgName("RegionII")] RegionII,
-    [PgName("RegionIII")] RegionIII,
-    [PgName("RegionIVA")] RegionIVA,
-    [PgName("RegionIVB")] RegionIVB,
-    [PgName("RegionV")] RegionV,
-    [PgName("RegionVI")] RegionVI,
-    [PgName("RegionVII")] RegionVII,
-    [PgName("RegionVIII")] RegionVIII,
-    [PgName("RegionIX")] RegionIX,
-    [PgName("RegionX")] RegionX,
-    [PgName("RegionXI")] RegionXI,
-    [PgName("RegionXII")] RegionXII,
-    [PgName("RegionXIII")] RegionXIII,
-    [PgName("BARMM")] BARMM,
-    [PgName("Luzon")] Luzon,
-    [PgName("Visayas")] Visayas,
-    [PgName("Mindanao")] Mindanao
 }

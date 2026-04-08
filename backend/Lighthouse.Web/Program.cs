@@ -130,6 +130,16 @@ builder.Services.AddScoped<IDonorPredictionService, DonorPredictionService>();
 builder.Services.AddScoped<OkrMetricsService>();
 builder.Services.AddScoped<IEmailCodeSender, SmtpEmailCodeSender>();
 builder.Services.AddSingleton<IEmailTwoFactorCodeStore, InMemoryEmailTwoFactorCodeStore>();
+builder.Services.Configure<SocialMediaMlApiOptions>(builder.Configuration.GetSection("SocialMediaMlApi"));
+builder.Services.AddHttpClient<SocialMediaAnalyticsClient>((sp, client) =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<SocialMediaMlApiOptions>>().Value;
+    var baseUrl = string.IsNullOrWhiteSpace(options.BaseUrl)
+        ? "http://localhost:8001"
+        : options.BaseUrl.TrimEnd('/');
+
+    client.BaseAddress = new Uri(baseUrl);
+});
 
 builder.Services
     .AddControllersWithViews()
