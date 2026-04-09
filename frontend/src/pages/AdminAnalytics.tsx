@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { fetchJson } from '../api/client'
 
@@ -96,6 +96,14 @@ type ProgramsTier1Payload = {
 function formatPct01(x: number | null | undefined) {
   if (x == null || Number.isNaN(x)) return '—'
   return `${(x * 100).toFixed(1)}%`
+}
+
+/** Recharts 3 Tooltip formatter: value is `ValueType | undefined`, not `number`. */
+function tooltipCountFormatter(unit: string) {
+  return (value: unknown): [ReactNode, ReactNode] => {
+    if (typeof value === 'number' && Number.isFinite(value)) return [value, unit]
+    return [String(value ?? ''), unit]
+  }
 }
 
 function dominantBucket(rows: ProgramsTier1ChartRow[]): { label: string; pct: number } | null {
@@ -638,7 +646,7 @@ export function AdminAnalytics() {
                         <BarChart data={programsTier1.residents.chartRows} margin={{ bottom: 4, left: 0 }}>
                           <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={60} />
                           <YAxis width={32} tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={(v: number) => [v, 'Residents']} />
+                          <Tooltip formatter={tooltipCountFormatter('Residents')} />
                           <Bar dataKey="count" fill="var(--bs-primary)" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -651,7 +659,7 @@ export function AdminAnalytics() {
                         <BarChart data={programsTier1.residents.secondaryChartRows} margin={{ bottom: 4, left: 0 }}>
                           <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={60} />
                           <YAxis width={32} tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={(v: number) => [v, 'Residents']} />
+                          <Tooltip formatter={tooltipCountFormatter('Residents')} />
                           <Bar dataKey="count" fill="var(--bs-success)" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -701,7 +709,7 @@ export function AdminAnalytics() {
                     <BarChart data={programsTier1.education.chartRows} margin={{ bottom: 4, left: 0 }}>
                       <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                       <YAxis width={32} tick={{ fontSize: 10 }} />
-                      <Tooltip formatter={(v: number) => [v, 'Records']} />
+                      <Tooltip formatter={tooltipCountFormatter('Records')} />
                       <Bar dataKey="count" fill="var(--bs-warning)" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
