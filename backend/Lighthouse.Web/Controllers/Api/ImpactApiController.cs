@@ -419,12 +419,11 @@ public class ImpactApiController : ControllerBase
             givingInAction = new
             {
                 metricKey = "estimatedMonthlyCostPerGirlInCare",
-                headline = "Estimated monthly cost per girl in care",
+                headline = "Monthly equivalent",
                 value = estimatedMonthlyCostPerGirlInCare,
                 context = estimatedMonthlyCostPerGirlInCare == null
                     ? "Not enough active resident data yet."
-                    : $"Based on last-12-month donations divided by active census and spread across 12 months.",
-                formula = "donationsLast12Months / (activeResidentsNow * 12)"
+                    : ""
             },
             spreadingTheWord = new
             {

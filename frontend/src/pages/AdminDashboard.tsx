@@ -260,11 +260,7 @@ export function AdminDashboard() {
       <div className="row g-3 mb-4">
         <div className="col-lg-8">
           <div className="lh-chart-card h-100">
-            <div className="fw-semibold mb-1">Donation trends</div>
-            <div className="text-secondary small mb-2">
-              From the donations pipeline (ml-service / <code className="small">datasets/donations.csv</code>).{' '}
-              <Link to="/Admin/Analytics">Reports &amp; analytics</Link> for channel mix and tables.
-            </div>
+            <div className="fw-semibold mb-2">Donation trends</div>
             {donationsMlErr ? (
               <div className="alert alert-warning py-2 small mb-0">
                 Pipeline trends unavailable ({donationsMlErr}). Check ml-service URL and dataset on the host.

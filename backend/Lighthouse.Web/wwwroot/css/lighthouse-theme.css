@@ -42,11 +42,14 @@ html {
 body.lh-body {
   margin-bottom: 0;
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  background: var(--lh-surface);
-  color: var(--lh-ink);
+  /* Solid base + decorative radials pinned to the viewport so they don’t shift when
+     content height/scrollbars change (e.g. typing in filter boxes). */
+  background-color: var(--lh-surface);
   background-image:
     radial-gradient(circle at 8% 8%, rgba(31, 47, 107, 0.05) 0, rgba(31, 47, 107, 0) 34%),
     radial-gradient(circle at 94% 3%, rgba(179, 25, 66, 0.04) 0, rgba(179, 25, 66, 0) 28%);
+  background-attachment: fixed, fixed;
+  color: var(--lh-ink);
 }
 
 .lh-main {

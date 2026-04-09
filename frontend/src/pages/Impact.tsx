@@ -57,8 +57,6 @@ type ImpactResponse = {
   dataFreshness?: {
     generatedAtUtc: string
     latestSafehouseMetricMonth: string | null
-    /** Rolling case-activity window for safehouse comparison (UTC). */
-    operationalCaseWindow?: string | null
   }
   outcomeSignals?: {
     donationsLast12Months: number
@@ -106,7 +104,6 @@ type ImpactResponse = {
     headline: string
     value: number | null
     context: string
-    formula: string
   }
   spreadingTheWord?: {
     totalReachThisMonth: number | null
@@ -116,7 +113,6 @@ type ImpactResponse = {
     socialDonationsCountThisMonth?: number
     socialDonationsAmountThisMonth?: number
     donationReferralsFromSocialPosts: number
-    platformAttributionNote?: string
     /** All platforms in the window (by dollar), for auditing 100% / single-bucket cases. */
     platformBreakdown?: { platform: string; giftCount: number; totalAmount: number; sharePct: number }[]
     windowLabel: string
@@ -144,23 +140,12 @@ type ImpactResponse = {
   pipelineInsights?: PipelineInsights
 }
 
-/** Grader/dev footnote: all Impact numbers come from one JSON response; text names the PostgreSQL tables the API reads. */
-function DataSourceNote({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <p className={`small text-body-tertiary mb-0 mt-2 pt-2 border-top border-secondary-subtle ${className}`.trim()}>
-      <span className="text-body-secondary fw-semibold me-1">Data source:</span>
-      {children}
-    </p>
-  )
-}
-
 export function Impact() {
   const [data, setData] = useState<ImpactResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [animateCharts, setAnimateCharts] = useState(false)
 
   useEffect(() => {
-    // Single dashboard payload: Lighthouse.Web → GET /api/impact (EF Core → PostgreSQL; optional ML overlay merges pipelineInsights).
     fetchJson<ImpactResponse>('/api/impact')
       .then(setData)
       .catch((e: Error) => setError(e.message))
@@ -208,15 +193,10 @@ export function Impact() {
     return <div className="text-body-secondary">Loading impact data...</div>
   }
   const chips = data.chips ?? []
-  // API source: GET /api/impact -> kpis (DB aggregates from supporters/safehouses/partners/residents).
   const kpis = data.kpis ?? { livesImpacted: 0, safehouses: 0, activePrograms: 0, successRate: 0 }
-  // API source: GET /api/impact -> retention + retentionDetail (donations table).
   const retention = data.retention ?? []
-  const retentionDetail = data.retentionDetail ?? null
-  // API source: GET /api/impact -> supportMix (residents/education/incidents/intervention plan counts).
   const supportMix = data.supportMix ?? []
   const freshness = data.dataFreshness ?? { generatedAtUtc: new Date().toISOString(), latestSafehouseMetricMonth: null }
-  // API source: GET /api/impact -> outcomeSignals (donations + operational case aggregates).
   const outcomeSignals = {
     donationsLast12Months: data.outcomeSignals?.donationsLast12Months ?? 0,
     donorsLast12Months: data.outcomeSignals?.donorsLast12Months ?? 0,
@@ -226,7 +206,6 @@ export function Impact() {
     avgEducationLatest: data.outcomeSignals?.avgEducationLatest ?? null,
     avgHealthLatest: data.outcomeSignals?.avgHealthLatest ?? null
   }
-  // API source: GET /api/impact -> donorOkrs (donation recency windows).
   const donorOkrs = data.donorOkrs ?? {
     donorsLast365Days: 0,
     donorsLast90Days: 0,
@@ -236,7 +215,6 @@ export function Impact() {
     windowLabel: '',
     summary: '',
   }
-  // API source: GET /api/impact -> impactNarrative (residents + incidents).
   const impactNarrative = {
     inCareNow: data.impactNarrative?.inCareNow ?? outcomeSignals.activeResidentsLatest,
     recentReintegrations: data.impactNarrative?.recentReintegrations ?? 0,
@@ -244,7 +222,6 @@ export function Impact() {
     closureShareOfActivePct: data.impactNarrative?.closureShareOfActivePct ?? 0,
     storyWindowLabel: data.impactNarrative?.storyWindowLabel ?? 'Last 90 days (UTC)'
   }
-  // API source: GET /api/impact -> outcomePerDollar (donations + reintegration outcomes).
   const outcomePerDollar = {
     donationsLast12Months: data.outcomePerDollar?.donationsLast12Months ?? outcomeSignals.donationsLast12Months,
     reintegrationsLast12Months: data.outcomePerDollar?.reintegrationsLast12Months ?? 0,
@@ -253,21 +230,15 @@ export function Impact() {
     dollarsPerActiveResident: data.outcomePerDollar?.dollarsPerActiveResident ?? null,
     windowLabel: data.outcomePerDollar?.windowLabel ?? 'Last 12 months (UTC)'
   }
-  // API source: GET /api/impact -> upcomingCaseConferences (intervention_plans.case_conference_date).
   const upcomingCaseConferences = data.upcomingCaseConferences ?? { next30Days: 0, windowLabel: '' }
-  // API source: GET /api/impact -> riskLevels (residents.current_risk_level).
   const riskLevels = data.riskLevels ?? { low: 0, medium: 0, high: 0, critical: 0 }
-  // API source: GET /api/impact -> residentPipeline (residents.case_status + residents.reintegration_status).
   const residentPipeline = data.residentPipeline ?? { intake: 0, assessment: 0, activeCare: 0, preReintegration: 0, reintegrated: 0 }
-  // API source: GET /api/impact -> givingInAction (donations + residents derived metric).
   const givingInAction = data.givingInAction ?? {
     metricKey: 'estimatedMonthlyCostPerGirlInCare',
-    headline: 'Estimated monthly cost per girl in care',
+    headline: 'Monthly equivalent',
     value: null,
     context: '',
-    formula: '',
   }
-  // API source: GET /api/impact -> spreadingTheWord (public_impact_snapshots + donations/social attribution).
   const spreadingTheWord = data.spreadingTheWord ?? {
     totalReachThisMonth: null,
     totalReachLabel: 'No published reach snapshot in this window',
@@ -276,7 +247,6 @@ export function Impact() {
     socialDonationsCountThisMonth: 0,
     socialDonationsAmountThisMonth: 0,
     donationReferralsFromSocialPosts: 0,
-    platformAttributionNote: '',
     platformBreakdown: [],
     windowLabel: '',
   }
@@ -285,7 +255,6 @@ export function Impact() {
   const platformIsUnlabeled =
     spreadingTheWord.mostEffectivePlatform === 'Unknown/Unlabeled' || spreadingTheWord.mostEffectivePlatform === 'N/A'
   const platformBreakdown = spreadingTheWord.platformBreakdown ?? []
-  const metricDefinitions = data.metricDefinitions ?? []
   const allocationBreakdown = data.donationAllocationBreakdown ?? []
   const allocationAmountRaw = allocationBreakdown.reduce((sum, row) => sum + row.amountAllocated, 0)
   const totalAllocationAmount = allocationAmountRaw || 1
@@ -322,16 +291,9 @@ export function Impact() {
         </div>
         <p className="text-body-secondary small text-center mt-3 mb-0">
           Data freshness: generated {new Date(freshness.generatedAtUtc).toLocaleString()} UTC
-          {freshness.operationalCaseWindow ? ` | case activity window: ${freshness.operationalCaseWindow}` : ''}
         </p>
-        <DataSourceNote className="text-center">
-          Browser <code className="small px-1 rounded bg-body-secondary">GET /api/impact</code> (JSON). Chips + freshness from this
-          response; server reads PostgreSQL via EF Core (no data store in the browser). Optional:{' '}
-          <code className="small px-1 rounded bg-body-secondary">pipelineInsights</code> merged from the ML service when enabled.
-        </DataSourceNote>
       </section>
 
-      {/* impactNarrative + outcomePerDollar */}
       <section className="card border-0 shadow-sm" aria-label="Impact narrative and outcome efficiency">
         <div className="card-body p-4">
           <div className="row g-4">
@@ -368,38 +330,48 @@ export function Impact() {
               <h2 className="h5 mb-3">Outcome per dollar lens</h2>
               <div className="d-flex flex-column gap-2">
                 <div className="bg-body-tertiary rounded p-3">
-                    <div className="small text-body-secondary text-uppercase">Dollars per successful reintegration</div>
+                  <div className="small text-body-secondary fw-semibold">Donations per closure</div>
                   <div className="h4 mb-1 text-body-emphasis">
                     {outcomePerDollar.dollarsPerReintegration == null
                       ? 'N/A'
                       : `$${outcomePerDollar.dollarsPerReintegration.toLocaleString()}`}
                   </div>
                   <div className="small text-body-secondary">
-                    ${outcomePerDollar.donationsLast12Months.toLocaleString()} / {outcomePerDollar.reintegrationsLast12Months.toLocaleString()} reintegrations
+                    ${outcomePerDollar.donationsLast12Months.toLocaleString()} ÷{' '}
+                    {outcomePerDollar.reintegrationsLast12Months.toLocaleString()} closures in period
                   </div>
+                  {outcomePerDollar.dollarsPerReintegration != null ? (
+                    <p className="small text-body-secondary mb-0 mt-2">
+                      On average, donations in this period work out to about{' '}
+                      <strong>${outcomePerDollar.dollarsPerReintegration.toLocaleString()}</strong> per girl who closed
+                      her case in this period — an illustration of the giving that makes each reintegration possible.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="bg-body-tertiary rounded p-3">
-                  <div className="small text-body-secondary text-uppercase">Dollars supporting each girl in care</div>
+                  <div className="small text-body-secondary fw-semibold">Giving share per girl in care (today)</div>
                   <div className="h4 mb-1 text-body-emphasis">
                     {outcomePerDollar.dollarsPerActiveResident == null
                       ? 'N/A'
                       : `$${outcomePerDollar.dollarsPerActiveResident.toLocaleString()}`}
                   </div>
                   <div className="small text-body-secondary">
-                    {outcomePerDollar.activeResidentsNow.toLocaleString()} active residents in latest census
+                    {outcomePerDollar.activeResidentsNow.toLocaleString()} active residents (latest census)
                   </div>
+                  {outcomePerDollar.dollarsPerActiveResident != null ? (
+                    <p className="small text-body-secondary mb-0 mt-2">
+                      If donations from the last 12 months were shared evenly across the{' '}
+                      {outcomePerDollar.activeResidentsNow.toLocaleString()} girls currently in care, each girl&apos;s
+                      share would be about{' '}
+                      <strong>${outcomePerDollar.dollarsPerActiveResident.toLocaleString()}</strong> — a window into
+                      the scale of support our donors collectively provide.
+                    </p>
+                  ) : null}
                 </div>
               </div>
               <p className="small text-body-secondary mb-0 mt-3">{outcomePerDollar.windowLabel}</p>
             </div>
           </div>
-          <DataSourceNote>
-            <code className="small px-1 rounded bg-body-secondary">impactNarrative</code> +{' '}
-            <code className="small px-1 rounded bg-body-secondary">outcomePerDollar</code> — PostgreSQL{' '}
-            <code className="small px-1 rounded bg-body-secondary">residents</code> (census, closures/reintegrations),{' '}
-            <code className="small px-1 rounded bg-body-secondary">incident_reports</code> (last 30d UTC),{' '}
-            <code className="small px-1 rounded bg-body-secondary">donations</code> (12‑month totals).
-          </DataSourceNote>
         </div>
       </section>
 
@@ -410,15 +382,15 @@ export function Impact() {
           <div className="display-5 fw-semibold text-body-emphasis mb-2">
             {givingInAction.value == null ? 'N/A' : `$${givingInAction.value.toLocaleString()}`}
           </div>
-          <p className="small text-body-secondary mb-1">{givingInAction.context}</p>
-          <p className="small text-body-secondary mb-0">
-            <strong>Formula:</strong> {givingInAction.formula || 'Configured in API'}
-          </p>
-          <DataSourceNote>
-            <code className="small px-1 rounded bg-body-secondary">givingInAction</code> — computed in API from PostgreSQL{' '}
-            <code className="small px-1 rounded bg-body-secondary">donations</code> (last 12 months) and{' '}
-            <code className="small px-1 rounded bg-body-secondary">residents</code> (active census).
-          </DataSourceNote>
+          {givingInAction.value != null ? (
+            <p className="small text-body-secondary mb-0">
+              Spread across 12 months, that share works out to roughly{' '}
+              <strong>${givingInAction.value.toLocaleString()}</strong> per month — an illustration of the ongoing
+              commitment behind every girl&apos;s care, not a fixed sponsorship rate.
+            </p>
+          ) : (
+            <p className="small text-body-secondary mb-0">{givingInAction.context}</p>
+          )}
         </div>
       </section>
 
@@ -572,17 +544,6 @@ export function Impact() {
             </div>
           </div>
         </div>
-        <div className="col-12">
-          <DataSourceNote>
-            <code className="small px-1 rounded bg-body-secondary">kpis</code>:{' '}
-            <code className="small px-1 rounded bg-body-secondary">supporters</code>,{' '}
-            <code className="small px-1 rounded bg-body-secondary">safehouses</code>,{' '}
-            <code className="small px-1 rounded bg-body-secondary">partners</code>,{' '}
-            <code className="small px-1 rounded bg-body-secondary">residents</code> (closure rate).{' '}
-            <code className="small px-1 rounded bg-body-secondary">outcomeSignals.donationsLast12Months</code> from{' '}
-            <code className="small px-1 rounded bg-body-secondary">donations</code>.
-          </DataSourceNote>
-        </div>
         </div>
       </section>
 
@@ -594,10 +555,6 @@ export function Impact() {
               <div className="small text-body-secondary text-uppercase">Upcoming case conferences</div>
               <div className="display-6 fw-semibold text-body-emphasis">{upcomingCaseConferences.next30Days.toLocaleString()}</div>
               <div className="small text-body-secondary">{upcomingCaseConferences.windowLabel}</div>
-              <DataSourceNote>
-                <code className="small px-1 rounded bg-body-secondary">upcomingCaseConferences</code> — PostgreSQL{' '}
-                <code className="small px-1 rounded bg-body-secondary">intervention_plans.case_conference_date</code> (next 30 days, UTC).
-              </DataSourceNote>
             </div>
           </div>
         </div>
@@ -616,10 +573,6 @@ export function Impact() {
               <p className="small text-body-secondary mb-0 mt-3">
                 This view helps donors understand the current complexity of care needs across the program.
               </p>
-              <DataSourceNote>
-                <code className="small px-1 rounded bg-body-secondary">riskLevels</code> — PostgreSQL{' '}
-                <code className="small px-1 rounded bg-body-secondary">residents.current_risk_level</code>.
-              </DataSourceNote>
             </div>
           </div>
         </div>
@@ -700,11 +653,6 @@ export function Impact() {
                 </div>
               </div>
               <p className="small text-body-secondary mb-0 mt-3">{donorOkrs.windowLabel}</p>
-              <DataSourceNote>
-                <code className="small px-1 rounded bg-body-secondary">outcomeSignals</code> (donor counts / avg gift) +{' '}
-                <code className="small px-1 rounded bg-body-secondary">donorOkrs</code> — PostgreSQL{' '}
-                <code className="small px-1 rounded bg-body-secondary">donations</code> only (rolling 12‑month / 90‑day windows).
-              </DataSourceNote>
             </div>
           </div>
         </div>
@@ -792,32 +740,6 @@ export function Impact() {
                   </>
                 )}
               </p>
-              <details className="mt-3">
-                <summary className="small text-body-secondary">Methodology and data definitions</summary>
-                <div className="small text-body-secondary mt-2">
-                  {retentionDetail ? (
-                    <p className="mb-2">
-                      Latest month ({retentionDetail.monthLabel}): {retentionDetail.uniqueSupportersThisMonth.toLocaleString()} unique supporters,{' '}
-                      {retentionDetail.returningSupporters.toLocaleString()} returning, {retentionDetail.noGiftInPriorMonth.toLocaleString()} without a prior-month gift.
-                    </p>
-                  ) : null}
-                  {metricDefinitions.length > 0 ? (
-                    <ul className="mb-0 ps-3">
-                      {metricDefinitions.slice(0, 4).map((def) => (
-                        <li key={def.key}>
-                          <strong>{def.label}:</strong> {def.definition}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
-              </details>
-              <DataSourceNote>
-                <code className="small px-1 rounded bg-body-secondary">retention</code> +{' '}
-                <code className="small px-1 rounded bg-body-secondary">retentionDetail</code> — PostgreSQL{' '}
-                <code className="small px-1 rounded bg-body-secondary">donations</code> (supporter + month buckets).{' '}
-                <code className="small px-1 rounded bg-body-secondary">metricDefinitions</code> is static copy from the API.
-              </DataSourceNote>
             </div>
           </div>
         </div>
@@ -829,7 +751,6 @@ export function Impact() {
             <h2 className="h5 mb-0">Spreading the Word</h2>
             <small className="text-body-secondary">{spreadingTheWord.windowLabel}</small>
           </div>
-          {/* API: GET /api/impact -> spreadingTheWord (donations.channel_source = SocialMedia; platform from campaign_name/notes; post links from referral_post_id). */}
           <div className="row g-3">
             <div className="col-md-6">
               <div className="bg-body-tertiary rounded p-3 h-100">
@@ -858,12 +779,6 @@ export function Impact() {
                       {spreadingTheWord.mostEffectivePlatform}{' '}
                       <span className="fs-6 text-body-secondary">({spreadingTheWord.mostEffectivePlatformSharePct}% of last 90 days&apos; social gifts)</span>
                     </div>
-                    <div className="small text-body-secondary mb-2">
-                      Platform comes from the linked social post when{' '}
-                      <code className="small px-1 rounded bg-body-secondary text-body-emphasis">referral_post_id</code> matches{' '}
-                      <code className="small px-1 rounded bg-body-secondary text-body-emphasis">social_media_posts</code>; otherwise from
-                      keywords in campaign/notes.
-                    </div>
                     {platformBreakdown.length > 0 ? (
                       <ul className="small text-body-secondary mb-0 ps-3">
                         {platformBreakdown.map((row) => (
@@ -884,23 +799,12 @@ export function Impact() {
                 <div className="h5 mb-0 text-body-emphasis">{spreadingTheWord.donationReferralsFromSocialPosts.toLocaleString()}</div>
                 <div className="small text-body-secondary mt-1 mb-0">
                   {spreadingTheWord.donationReferralsFromSocialPosts === 0
-                    ? 'When staff link a donation to referral_post_id, it shows up here—great for proving which posts inspire giving.'
-                    : 'Donations in this window with referral_post_id set (linked to a post in the database).'}
+                    ? 'When a donation is linked to a specific social post, it will show up here.'
+                    : 'Donations in this window that are linked to a specific social post.'}
                 </div>
               </div>
             </div>
           </div>
-          {spreadingTheWord.platformAttributionNote ? (
-            <p className="small text-body-secondary mb-0 mt-3">{spreadingTheWord.platformAttributionNote}</p>
-          ) : null}
-          <DataSourceNote>
-            <code className="small px-1 rounded bg-body-secondary">spreadingTheWord</code> — PostgreSQL{' '}
-            <code className="small px-1 rounded bg-body-secondary">donations</code> where{' '}
-            <code className="small px-1 rounded bg-body-secondary">channel_source</code> is SocialMedia (90‑day window); platform from{' '}
-            <code className="small px-1 rounded bg-body-secondary">public.social_media_posts</code> when{' '}
-            <code className="small px-1 rounded bg-body-secondary">referral_post_id</code> matches, else text inference on campaign/notes. Reach
-            snapshot (if used elsewhere) comes from <code className="small px-1 rounded bg-body-secondary">public_impact_snapshots</code>.
-          </DataSourceNote>
         </div>
       </section>
 
