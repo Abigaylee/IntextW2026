@@ -191,7 +191,6 @@ export function Impact() {
   if (!data) {
     return <div className="text-body-secondary">Loading impact data...</div>
   }
-  const chips = data.chips ?? []
   const kpis = data.kpis ?? { livesImpacted: 0, safehouses: 0, activePrograms: 0, successRate: 0 }
   const retention = data.retention ?? []
   const supportMix = data.supportMix ?? []
