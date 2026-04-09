@@ -374,6 +374,9 @@ export function AdminDashboard() {
             ) : null}
             {residentsTransferRisk ? (
               <>
+                <p className="small text-secondary mb-2">
+                  {transferRiskActionHint(residentsTransferRisk.summary.highRiskResidents)}
+                </p>
                 {residentsTransferRisk.riskTierCounts?.length ? (
                   <div style={{ width: '100%', height: 150 }} className="mb-1">
                     <ResponsiveContainer>
