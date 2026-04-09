@@ -3,8 +3,9 @@ using Lighthouse.Web.Models.Entities;
 using Lighthouse.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
+using System.Diagnostics;
 using System.Globalization;
+using Npgsql;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -36,16 +37,23 @@ public class ImpactApiController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken cancellationToken)
     {
+        var requestTimer = Stopwatch.StartNew();
         try
         {
             var timeoutSec = _configuration.GetValue("Impact:CommandTimeoutSeconds", 120);
             if (timeoutSec > 0)
                 _db.Database.SetCommandTimeout(TimeSpan.FromSeconds(timeoutSec));
 
-            return await GetCore(cancellationToken);
+            var result = await GetCore(cancellationToken);
+            requestTimer.Stop();
+            _logger.LogInformation(
+                "GET /api/impact completed in {ElapsedMs} ms",
+                requestTimer.ElapsedMilliseconds);
+            return result;
         }
         catch (Exception ex)
         {
+            requestTimer.Stop();
             _logger.LogError(ex, "GET /api/impact failed");
             if (_configuration.GetValue("Impact:ExposeErrors", false))
             {
@@ -61,7 +69,13 @@ public class ImpactApiController : ControllerBase
 
     private async Task<IActionResult> GetCore(CancellationToken cancellationToken)
     {
+        var buildTimer = Stopwatch.StartNew();
         var payload = await BuildImpactDashboardAsync(cancellationToken);
+        buildTimer.Stop();
+        _logger.LogInformation(
+            "GET /api/impact DB aggregate build completed in {ElapsedMs} ms",
+            buildTimer.ElapsedMilliseconds);
+
         JsonNode? node = JsonSerializer.SerializeToNode(payload, ImpactJsonOptions);
         if (node is not JsonObject jsonObject)
             return new JsonResult(node, ImpactJsonOptions);
@@ -70,17 +84,39 @@ public class ImpactApiController : ControllerBase
         var mlOverlayPresent = false;
         if (mlEnabled)
         {
+            var mlTimeoutSec = _configuration.GetValue("ImpactMlApi:RequestTimeoutSeconds", 2);
+            using var mlTimeoutCts = mlTimeoutSec > 0
+                ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+                : null;
+            if (mlTimeoutSec > 0)
+                mlTimeoutCts!.CancelAfter(TimeSpan.FromSeconds(mlTimeoutSec));
+
+            var mlTimer = Stopwatch.StartNew();
             try
             {
-                var insights = await _impactPipelineClient.GetPipelineInsightsAsync(cancellationToken);
+                var effectiveToken = mlTimeoutCts?.Token ?? cancellationToken;
+                var insights = await _impactPipelineClient.GetPipelineInsightsAsync(effectiveToken);
                 if (insights != null)
                 {
                     jsonObject["pipelineInsights"] = JsonSerializer.SerializeToNode(insights, ImpactJsonOptions);
                     mlOverlayPresent = true;
                 }
+                mlTimer.Stop();
+                _logger.LogInformation(
+                    "GET /api/impact ML overlay call completed in {ElapsedMs} ms (overlayPresent={OverlayPresent})",
+                    mlTimer.ElapsedMilliseconds,
+                    mlOverlayPresent);
+            }
+            catch (OperationCanceledException) when (mlTimeoutSec > 0 && mlTimeoutCts?.IsCancellationRequested == true)
+            {
+                mlTimer.Stop();
+                _logger.LogWarning(
+                    "Impact ML overlay timed out after {TimeoutSec}s; returning EF aggregates only.",
+                    mlTimeoutSec);
             }
             catch (Exception ex)
             {
+                mlTimer.Stop();
                 _logger.LogWarning(ex, "Impact ML pipeline overlay unavailable; returning EF aggregates only.");
             }
         }
@@ -124,6 +160,7 @@ public class ImpactApiController : ControllerBase
         var donationsLast12Months = donations12MonthRows
             .Sum(d => d.Amount ?? 0m);
         var donorsLast12Months = donations12MonthRows
+            .Where(d => d.SupporterId > 0)
             .Select(d => d.SupporterId)
             .Distinct()
             .Count();

@@ -2,8 +2,20 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { fetchJson, type AuthMe } from '../api/client'
 
-const THEME_KEY = 'lh-theme'
-const COOKIE_PREF_KEY = 'cookie_preferences_enabled'
+const THEME_COOKIE_KEY = 'lh_theme'
+const CONSENT_COOKIE_KEY = 'cookie_consent'
+const CONSENT_VALUE_REJECTED = 'rejected'
+
+function readCookie(name: string): string | null {
+  const entry = document.cookie.split('; ').find((r) => r.startsWith(`${name}=`))
+  if (!entry) return null
+  const value = entry.slice(name.length + 1)
+  return value ? decodeURIComponent(value) : null
+}
+
+function writeThemeCookie(theme: 'light' | 'dark') {
+  document.cookie = `${THEME_COOKIE_KEY}=${theme}; path=/; max-age=31536000; SameSite=Lax`
+}
 
 function navLinkClass(active: boolean) {
   return active ? 'nav-link active' : 'nav-link'
@@ -19,13 +31,14 @@ export function AppNav() {
   }
 
   useEffect(() => {
-    const canStorePrefs = localStorage.getItem(COOKIE_PREF_KEY) !== 'false'
+    const consent = readCookie(CONSENT_COOKIE_KEY)
+    const canStorePrefs = consent !== CONSENT_VALUE_REJECTED
     if (!canStorePrefs) {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
       applyTheme(prefersDark ? 'dark' : 'light')
       return
     }
-    const stored = localStorage.getItem(THEME_KEY)
+    const stored = readCookie(THEME_COOKIE_KEY)
     if (stored === 'light' || stored === 'dark') {
       applyTheme(stored)
       return
@@ -53,14 +66,15 @@ export function AppNav() {
   }
 
   function toggleTheme() {
-    if (localStorage.getItem(COOKIE_PREF_KEY) === 'false') {
+    if (readCookie(CONSENT_COOKIE_KEY) === CONSENT_VALUE_REJECTED) {
       const currentTheme = document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light'
       applyTheme(currentTheme === 'dark' ? 'light' : 'dark')
       return
     }
-    const current = (localStorage.getItem(THEME_KEY) as 'light' | 'dark' | null) ?? 'light'
+    const current = (readCookie(THEME_COOKIE_KEY) as 'light' | 'dark' | null)
+      ?? (document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light')
     const next = current === 'dark' ? 'light' : 'dark'
-    localStorage.setItem(THEME_KEY, next)
+    writeThemeCookie(next)
     applyTheme(next)
   }
 

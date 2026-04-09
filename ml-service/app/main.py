@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import joblib
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -141,6 +143,38 @@ def _load_donations_from_database(db_url: str) -> pd.DataFrame:
             estimated_value,
             referral_post_id
         FROM donations
+    """
+    return fetch_dataframe(db_url, query)
+
+
+def _load_supporters_for_donations(db_url: str) -> pd.DataFrame:
+    query = """
+        SELECT
+            supporter_id,
+            acquisition_channel,
+            status
+        FROM supporters
+    """
+    return fetch_dataframe(db_url, query)
+
+
+def _load_social_posts_for_referrals(db_url: str) -> pd.DataFrame:
+    query = """
+        SELECT
+            post_id,
+            engagement_rate
+        FROM social_media_posts
+    """
+    return fetch_dataframe(db_url, query)
+
+
+def _load_allocations_for_donations(db_url: str) -> pd.DataFrame:
+    query = """
+        SELECT
+            donation_id,
+            program_area,
+            amount_allocated
+        FROM donation_allocations
     """
     return fetch_dataframe(db_url, query)
 
@@ -350,8 +384,16 @@ def root() -> dict[str, Any]:
         'impactAnalytics': '/impact/analytics',
     }
 def _repo_root() -> Path:
-    """Repository root (parent of ml-service/)."""
-    return _artifact_root().resolve().parent
+    """
+    Repository root in local dev; falls back to ml-service root in container images.
+    Local: <repo>/ml-service -> returns <repo> (has datasets/).
+    Container: /app -> parent is / (no datasets/) -> returns /app.
+    """
+    service_root = _artifact_root().resolve()
+    candidate = service_root.parent
+    if (candidate / 'datasets').exists():
+        return candidate
+    return service_root
 
 
 def _donations_analytics_empty(load_warning: str = '', data_source: str = 'empty') -> dict[str, Any]:
@@ -683,6 +725,470 @@ def _safe_load_donations_explore_summary() -> dict[str, Any]:
         return _donations_explore_empty(f'Explore summary failed: {ex}', 'error')
 
 
+_donations_forecast_cache: dict[str, Any] = {
+    'signature': None,
+    'payload': None,
+}
+_donations_forecast_refreshing = False
+_donations_forecast_lock = threading.Lock()
+_tier1_analytics_cache: dict[str, Any] = {
+    'payload': None,
+    'cachedAtUtc': None,
+}
+_tier1_analytics_refreshing = False
+_tier1_analytics_lock = threading.Lock()
+
+
+def _compute_donations_signature(df: pd.DataFrame) -> str:
+    if df.empty:
+        return 'empty'
+    max_id = int(pd.to_numeric(df.get('donation_id'), errors='coerce').fillna(0).max()) if 'donation_id' in df.columns else 0
+    max_date = ''
+    if 'donation_date' in df.columns:
+        dd = pd.to_datetime(df['donation_date'], errors='coerce')
+        if dd.notna().any():
+            max_date = str(dd.max().date())
+    total = float(pd.to_numeric(df.get('estimated_value'), errors='coerce').fillna(0).sum()) if 'estimated_value' in df.columns else 0.0
+    return f"n={len(df)}|maxId={max_id}|maxDate={max_date}|sum={round(total,2)}"
+
+
+def _forecast_cache_path() -> Path:
+    root = _artifact_root().resolve()
+    return Path(
+        os.getenv(
+            'DONATIONS_FORECAST_CACHE_PATH',
+            str(root / 'artifacts' / 'donations_next_month_forecast_cache.json'),
+        )
+    )
+
+
+def _default_forecast_model_path() -> Path:
+    """
+    Resolve forecast model path across local repo and container image layouts.
+    Preferred in container: /app/artifacts/donation_prediction_next_month_model.joblib
+    """
+    root = _repo_root()
+    service_root = _artifact_root().resolve()
+    candidates = [
+        service_root / 'artifacts' / 'donation_prediction_next_month_model.joblib',
+        root / 'ml-pipelines' / 'artifacts' / 'donation_prediction_next_month_model.joblib',
+    ]
+    for p in candidates:
+        if p.is_file():
+            return p
+    return candidates[0]
+
+
+def _read_forecast_cache_file() -> tuple[str | None, dict[str, Any] | None]:
+    path = _forecast_cache_path()
+    if not path.is_file():
+        return None, None
+    try:
+        payload = json.loads(path.read_text(encoding='utf-8'))
+        sig = payload.get('_signature')
+        data = payload.get('data')
+        if isinstance(sig, str) and isinstance(data, dict):
+            return sig, data
+    except Exception:
+        return None, None
+    return None, None
+
+
+def _write_forecast_cache_file(signature: str, payload: dict[str, Any]) -> None:
+    path = _forecast_cache_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({'_signature': signature, 'data': payload}, indent=2), encoding='utf-8')
+
+
+def _build_monthly_prediction_frame(
+    donations_df: pd.DataFrame,
+    supporters_df: pd.DataFrame | None,
+    social_df: pd.DataFrame | None,
+    allocations_df: pd.DataFrame | None,
+) -> pd.DataFrame:
+    work = donations_df.copy()
+    work['donation_date'] = pd.to_datetime(work['donation_date'], errors='coerce')
+    work = work[work['donation_date'].notna()].copy()
+    work['estimated_value'] = pd.to_numeric(work['estimated_value'], errors='coerce')
+    work = work[work['estimated_value'].notna()].copy()
+    work['month'] = work['donation_date'].dt.to_period('M').astype(str)
+
+    if work.empty:
+        return pd.DataFrame()
+
+    monthly = work.groupby('month', as_index=False).agg(
+        month_total_estimated_value=('estimated_value', 'sum'),
+        gift_count=('donation_id', 'count'),
+        avg_gift_value=('estimated_value', 'mean'),
+        recurring_share=('is_recurring', lambda s: s.astype(str).str.lower().isin(['true', '1', 'yes']).mean()),
+        unique_supporters=('supporter_id', 'nunique'),
+    )
+
+    type_mix = (
+        work.pivot_table(index='month', columns='donation_type', values='donation_id', aggfunc='count', fill_value=0)
+        .add_prefix('type_count_')
+        .reset_index()
+    )
+    channel_mix = (
+        work.pivot_table(index='month', columns='channel_source', values='donation_id', aggfunc='count', fill_value=0)
+        .add_prefix('channel_count_')
+        .reset_index()
+    )
+
+    if supporters_df is not None and len(supporters_df):
+        sup_small = supporters_df[['supporter_id', 'acquisition_channel', 'status']].copy()
+        work_sup = work.merge(sup_small, on='supporter_id', how='left')
+        sup_month = work_sup.groupby('month', as_index=False).agg(
+            active_supporter_share=('status', lambda s: (s.fillna('') == 'Active').mean()),
+            social_acquisition_share=('acquisition_channel', lambda s: (s.fillna('') == 'SocialMedia').mean()),
+        )
+    else:
+        sup_month = pd.DataFrame({'month': monthly['month'], 'active_supporter_share': 0.0, 'social_acquisition_share': 0.0})
+
+    if social_df is not None and len(social_df):
+        sm_small = social_df[['post_id', 'engagement_rate']].copy()
+        work_sm = work.merge(sm_small, left_on='referral_post_id', right_on='post_id', how='left')
+        sm_month = work_sm.groupby('month', as_index=False).agg(
+            social_referral_count=('referral_post_id', lambda s: s.notna().sum()),
+            referred_post_avg_engagement=('engagement_rate', 'mean'),
+        )
+    else:
+        sm_month = pd.DataFrame({'month': monthly['month'], 'social_referral_count': 0.0, 'referred_post_avg_engagement': 0.0})
+
+    if allocations_df is not None and len(allocations_df):
+        alloc_month = (
+            work[['donation_id', 'month']]
+            .merge(allocations_df[['donation_id', 'program_area', 'amount_allocated']], on='donation_id', how='left')
+            .groupby('month', as_index=False)
+            .agg(
+                allocated_amount_total=('amount_allocated', 'sum'),
+                allocated_program_areas=('program_area', lambda s: s.nunique()),
+            )
+        )
+    else:
+        alloc_month = pd.DataFrame({'month': monthly['month'], 'allocated_amount_total': 0.0, 'allocated_program_areas': 0.0})
+
+    feat = monthly.merge(type_mix, on='month', how='left')
+    feat = feat.merge(channel_mix, on='month', how='left')
+    feat = feat.merge(sup_month, on='month', how='left')
+    feat = feat.merge(sm_month, on='month', how='left')
+    feat = feat.merge(alloc_month, on='month', how='left')
+
+    feat = feat.sort_values('month').reset_index(drop=True)
+    feat['month_start'] = pd.to_datetime(feat['month'] + '-01')
+    feat['month_num'] = feat['month_start'].dt.month
+    feat['year'] = feat['month_start'].dt.year
+
+    # Winsorize monthly totals before lag/rolling features to reduce spike sensitivity in production.
+    lo_q = float(os.getenv('DONATIONS_FORECAST_LOWER_Q', '0.05'))
+    hi_q = float(os.getenv('DONATIONS_FORECAST_UPPER_Q', '0.95'))
+    lo = float(feat['month_total_estimated_value'].quantile(lo_q))
+    hi = float(feat['month_total_estimated_value'].quantile(hi_q))
+    feat['month_total_for_features'] = feat['month_total_estimated_value'].clip(lower=lo, upper=hi)
+
+    for lag in [1, 2, 3, 6]:
+        feat[f'lag_total_{lag}'] = feat['month_total_for_features'].shift(lag)
+        if lag <= 3:
+            feat[f'lag_gift_count_{lag}'] = feat['gift_count'].shift(lag)
+
+    feat['rolling3_total_mean'] = feat['month_total_for_features'].shift(1).rolling(3).mean()
+    feat['rolling3_total_std'] = feat['month_total_for_features'].shift(1).rolling(3).std()
+    feat['rolling6_total_mean'] = feat['month_total_for_features'].shift(1).rolling(6).mean()
+    return feat
+
+
+def _build_donations_next_month_forecast() -> dict[str, Any]:
+    model_path = Path(
+        os.getenv(
+            'DONATIONS_FORECAST_MODEL_PATH',
+            str(_default_forecast_model_path()),
+        )
+    )
+    if not model_path.is_file():
+        return {
+            'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
+            'dataSource': 'error',
+            'loadWarning': f'Forecast model artifact not found: {model_path}',
+            'endpointVersion': '2.0.0',
+            'modelName': '',
+            'modelMetrics': None,
+            'latestObservedMonth': None,
+            'predictedMonth': None,
+            'predictedTotalEstimatedValue': None,
+            'predictionRange': None,
+            'featureSnapshot': {},
+        }
+
+    donations_df, data_source, load_warning = _load_donations_prepared_dataframe()
+    if donations_df is None or donations_df.empty:
+        return {
+            'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
+            'dataSource': data_source,
+            'loadWarning': load_warning or 'No donations available for forecast.',
+            'endpointVersion': '2.0.0',
+            'modelName': '',
+            'modelMetrics': None,
+            'latestObservedMonth': None,
+            'predictedMonth': None,
+            'predictedTotalEstimatedValue': None,
+            'predictionRange': None,
+            'featureSnapshot': {},
+        }
+
+    signature = _compute_donations_signature(donations_df)
+    cached_sig = _donations_forecast_cache.get('signature')
+    cached_payload = _donations_forecast_cache.get('payload')
+    if cached_sig == signature and isinstance(cached_payload, dict):
+        return cached_payload
+
+    db_url = resolve_db_connection_value()
+    supporters_df = social_df = allocations_df = None
+    if db_url:
+        try:
+            supporters_df = _load_supporters_for_donations(db_url)
+        except Exception:
+            supporters_df = None
+        try:
+            social_df = _load_social_posts_for_referrals(db_url)
+        except Exception:
+            social_df = None
+        try:
+            allocations_df = _load_allocations_for_donations(db_url)
+        except Exception:
+            allocations_df = None
+
+    feat = _build_monthly_prediction_frame(donations_df, supporters_df, social_df, allocations_df)
+    feat = feat.dropna(subset=['lag_total_1', 'lag_total_2', 'lag_total_3']).reset_index(drop=True)
+    if feat.empty:
+        return {
+            'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
+            'dataSource': data_source,
+            'loadWarning': 'Not enough monthly history for lag features.',
+            'endpointVersion': '2.0.0',
+            'modelName': '',
+            'modelMetrics': None,
+            'latestObservedMonth': None,
+            'predictedMonth': None,
+            'predictedTotalEstimatedValue': None,
+            'predictionRange': None,
+            'featureSnapshot': {},
+        }
+
+    bundle = joblib.load(model_path)
+    model = bundle.get('model')
+    feature_columns = list(bundle.get('feature_columns', []))
+    model_name = str(bundle.get('model_name') or '')
+    model_metrics = bundle.get('metrics_test')
+
+    latest = feat.iloc[-1].copy()
+    x_in = pd.DataFrame([latest.to_dict()])
+    for c in feature_columns:
+        if c not in x_in.columns:
+            x_in[c] = 0.0
+    x_in = x_in[feature_columns]
+    x_in = x_in.fillna(0.0)
+
+    pred = float(model.predict(x_in)[0])
+    pred = max(pred, 0.0)
+    uncertainty = max(pred * 0.2, 500.0)
+
+    latest_month = pd.Period(str(latest['month']), freq='M')
+    pred_month = str(latest_month + 1)
+
+    payload = {
+        'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
+        'dataSource': data_source,
+        'loadWarning': load_warning,
+        'endpointVersion': '2.0.0',
+        'modelName': model_name,
+        'modelMetrics': model_metrics,
+        'latestObservedMonth': str(latest['month']),
+        'predictedMonth': pred_month,
+        'predictedTotalEstimatedValue': round(pred, 2),
+        'predictionRange': {
+            'lower': round(max(pred - uncertainty, 0.0), 2),
+            'upper': round(pred + uncertainty, 2),
+        },
+        'featureSnapshot': {
+            'lagTotal1': round(_safe_float(latest.get('lag_total_1')), 2),
+            'rolling6TotalMean': round(_safe_float(latest.get('rolling6_total_mean')), 2),
+            'monthNum': _safe_int(latest.get('month_num')),
+            'avgGiftValue': round(_safe_float(latest.get('avg_gift_value')), 2),
+            'uniqueSupporters': _safe_int(latest.get('unique_supporters')),
+        },
+    }
+    _donations_forecast_cache['signature'] = signature
+    _donations_forecast_cache['payload'] = payload
+    _write_forecast_cache_file(signature, payload)
+    return payload
+
+
+def _safe_load_donations_next_month_forecast() -> dict[str, Any]:
+    try:
+        donations_df, _, _ = _load_donations_prepared_dataframe()
+        if donations_df is None:
+            return _build_donations_next_month_forecast()
+        current_signature = _compute_donations_signature(donations_df)
+
+        mem_sig = _donations_forecast_cache.get('signature')
+        mem_payload = _donations_forecast_cache.get('payload')
+        if mem_sig == current_signature and isinstance(mem_payload, dict):
+            return mem_payload
+
+        file_sig, file_payload = _read_forecast_cache_file()
+        if file_sig == current_signature and isinstance(file_payload, dict):
+            _donations_forecast_cache['signature'] = file_sig
+            _donations_forecast_cache['payload'] = file_payload
+            return file_payload
+
+        # Stale-while-refresh: if we have any previous payload, return it immediately
+        # and refresh in background so dashboards never go blank.
+        fallback_payload = mem_payload if isinstance(mem_payload, dict) else file_payload
+        if isinstance(fallback_payload, dict):
+            global _donations_forecast_refreshing
+            with _donations_forecast_lock:
+                should_start = not _donations_forecast_refreshing
+                if should_start:
+                    _donations_forecast_refreshing = True
+
+            if should_start:
+                def _refresh():
+                    global _donations_forecast_refreshing
+                    try:
+                        _build_donations_next_month_forecast()
+                    finally:
+                        with _donations_forecast_lock:
+                            _donations_forecast_refreshing = False
+
+                threading.Thread(target=_refresh, daemon=True).start()
+            stale = dict(fallback_payload)
+            stale['isRefreshing'] = True
+            stale['generatedAtUtc'] = stale.get('generatedAtUtc') or datetime.now(timezone.utc).isoformat()
+            return stale
+
+        return _build_donations_next_month_forecast()
+    except Exception as ex:
+        return {
+            'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
+            'dataSource': 'error',
+            'loadWarning': f'Forecast build failed: {ex}',
+            'endpointVersion': '2.0.0',
+            'modelName': '',
+            'modelMetrics': None,
+            'latestObservedMonth': None,
+            'predictedMonth': None,
+            'predictedTotalEstimatedValue': None,
+            'predictionRange': None,
+            'featureSnapshot': {},
+        }
+
+
+def _tier1_cache_path() -> Path:
+    root = _artifact_root().resolve()
+    return Path(
+        os.getenv(
+            'TIER1_ANALYTICS_CACHE_PATH',
+            str(root / 'artifacts' / 'tier1_analytics_cache.json'),
+        )
+    )
+
+
+def _read_tier1_cache_file() -> tuple[dict[str, Any] | None, str | None]:
+    path = _tier1_cache_path()
+    if not path.is_file():
+        return None, None
+    try:
+        payload = json.loads(path.read_text(encoding='utf-8'))
+        data = payload.get('data')
+        cached_at = payload.get('cachedAtUtc')
+        if isinstance(data, dict):
+            return data, str(cached_at) if isinstance(cached_at, str) else None
+    except Exception:
+        return None, None
+    return None, None
+
+
+def _write_tier1_cache_file(payload: dict[str, Any], cached_at_utc: str) -> None:
+    path = _tier1_cache_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({'cachedAtUtc': cached_at_utc, 'data': payload}, indent=2), encoding='utf-8')
+
+
+def _build_tier1_analytics_and_cache() -> dict[str, Any]:
+    payload = safe_build_tier1_analytics()
+    cached_at_utc = datetime.now(timezone.utc).isoformat()
+    _tier1_analytics_cache['payload'] = payload
+    _tier1_analytics_cache['cachedAtUtc'] = cached_at_utc
+    _write_tier1_cache_file(payload, cached_at_utc)
+    return payload
+
+
+def _safe_load_tier1_analytics() -> dict[str, Any]:
+    try:
+        ttl_seconds = int(os.getenv('TIER1_ANALYTICS_CACHE_TTL_SECONDS', '43200'))  # default 12h
+        now_ts = datetime.now(timezone.utc).timestamp()
+
+        mem_payload = _tier1_analytics_cache.get('payload')
+        mem_cached_at = _tier1_analytics_cache.get('cachedAtUtc')
+        if not isinstance(mem_payload, dict):
+            file_payload, file_cached_at = _read_tier1_cache_file()
+            if isinstance(file_payload, dict):
+                _tier1_analytics_cache['payload'] = file_payload
+                _tier1_analytics_cache['cachedAtUtc'] = file_cached_at
+                mem_payload = file_payload
+                mem_cached_at = file_cached_at
+
+        is_fresh = False
+        if isinstance(mem_payload, dict) and isinstance(mem_cached_at, str):
+            try:
+                cached_ts = datetime.fromisoformat(mem_cached_at).timestamp()
+                is_fresh = (now_ts - cached_ts) < ttl_seconds
+            except Exception:
+                is_fresh = False
+
+        if isinstance(mem_payload, dict) and is_fresh:
+            return mem_payload
+
+        # Stale-while-refresh for tier1: return stale payload while refreshing in background.
+        if isinstance(mem_payload, dict):
+            global _tier1_analytics_refreshing
+            with _tier1_analytics_lock:
+                should_start = not _tier1_analytics_refreshing
+                if should_start:
+                    _tier1_analytics_refreshing = True
+
+            if should_start:
+                def _refresh_tier1():
+                    global _tier1_analytics_refreshing
+                    try:
+                        _build_tier1_analytics_and_cache()
+                    finally:
+                        with _tier1_analytics_lock:
+                            _tier1_analytics_refreshing = False
+
+                threading.Thread(target=_refresh_tier1, daemon=True).start()
+
+            stale = dict(mem_payload)
+            stale['isRefreshing'] = True
+            stale['loadWarning'] = (
+                (str(stale.get('loadWarning') or '') + ' ').strip()
+                + 'Showing cached snapshot while analytics refresh runs in background.'
+            ).strip()
+            return stale
+
+        # Cold start (no snapshot): build once.
+        return _build_tier1_analytics_and_cache()
+    except Exception as ex:
+        return {
+            'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
+            'residents': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'totalResidents': 0, 'activeResidents': 0, 'distinctSafehouses': 0}, 'chartRows': [], 'secondaryChartRows': []},
+            'education': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'totalRecords': 0, 'uniqueResidents': 0, 'avgAttendancePercent': None, 'avgProgressPercent': None}, 'chartRows': []},
+            'healthWellbeing': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'totalRecords': 0, 'uniqueResidents': 0, 'avgGeneralHealthScore': None, 'medianGeneralHealthScore': None, 'avgNutritionScore': None, 'avgSleepQualityScore': None, 'avgEnergyLevelScore': None, 'medicalCheckupShare': None, 'dentalCheckupShare': None, 'psychologicalCheckupShare': None}},
+            'safehousePerformance': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'safehouseCount': 0, 'latestMonth': None}, 'rows': [], 'topSafehouses': [], 'bottomSafehouses': []},
+            'reintegration': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'lookbackMonths': 12, 'successCount': 0, 'eligibleCount': 0, 'successRate': 0.0}, 'monthlyTrend': []},
+        }
+
+
 app = FastAPI(
     title='Lighthouse ML API',
     description='Social media analytics, donations pipeline trends, and tier-1 program analytics for admin dashboard.',
@@ -736,7 +1242,13 @@ def donations_explore_summary() -> dict[str, Any]:
     return _safe_load_donations_explore_summary()
 
 
+@app.get('/donations/next-month-forecast')
+def donations_next_month_forecast() -> dict[str, Any]:
+    """Predict next calendar month total donation value using model artifact and live DB features."""
+    return _safe_load_donations_next_month_forecast()
+
+
 @app.get('/reports/tier1-analytics')
 def reports_tier1_analytics() -> dict[str, Any]:
     """Residents, education, and health & wellbeing from live DB (when configured) or CSV + notebook artifacts."""
-    return safe_build_tier1_analytics()
+    return _safe_load_tier1_analytics()

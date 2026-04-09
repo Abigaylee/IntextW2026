@@ -42,6 +42,9 @@ You do **not** manually zip-deploy the `ml-service` folder in normal operation. 
 - **`SOCIAL_MEDIA_DB_URL`** or **`ConnectionStrings__DefaultConnection`** — PostgreSQL for social posts, **donations**, and tier-1 program tables when available.
 - Optional fallbacks if the full repo layout is not in the image (usually not needed when DB is set):
   - `SOCIAL_MEDIA_DATASET_PATH`, `DONATIONS_DATASET_PATH`, `DONATIONS_METRICS_PATH`, tier-1 CSV paths (see older comments in `app/main.py` / env examples).
+- Forecast artifact path (optional override):
+  - `DONATIONS_FORECAST_MODEL_PATH=/app/artifacts/donation_prediction_next_month_model.joblib`
+  - default runtime expects the model inside the container image under `/app/artifacts/`.
 
 Local-only / artifact refresh (optional):
 
@@ -81,6 +84,7 @@ On the **backend** App Service (or `appsettings` for the environment):
 - `SocialMediaMlApi__AnalyticsPath=/social-media/analytics` (optional; default)
 - `SocialMediaMlApi__DonationsAnalyticsPath=/donations/analytics` (optional; default)
 - `SocialMediaMlApi__DonationsExploreSummaryPath=/donations/explore-summary` (optional; default)
+- `SocialMediaMlApi__DonationsForecastPath=/donations/next-month-forecast` (optional; default)
 - `SocialMediaMlApi__ProgramsTier1AnalyticsPath=/reports/tier1-analytics` (optional; default)
 - `SocialMediaMlApi__ApiKey=` (optional)
 - `ImpactMlApi__Enabled=true`
@@ -94,6 +98,7 @@ Verify (admin session where required):
 - `GET .../api/admin/analytics/social-media`
 - `GET .../api/admin/analytics/donations-ml`
 - `GET .../api/admin/analytics/donations-explore`
+- `GET .../api/admin/analytics/donations-forecast`
 - `GET .../api/admin/analytics/programs-tier1`
 
 Verify (public impact):
@@ -108,7 +113,7 @@ Verify (public impact):
 Redeploy the frontend when UI changes. As admin, open:
 
 - `/Admin/SocialMedia`
-- `/Admin/Analytics` (Reports & analytics — donations ML, tier-1, **Donations notebook EDA** card when the new endpoints are live)
+- `/Admin/Analytics` (Reports & analytics — donations ML, forecast, tier-1, safehouse comparison, reintegration)
 
 ---
 
@@ -120,15 +125,17 @@ curl -fsS "$BASE_URL/health" | jq .
 curl -fsS "$BASE_URL/openapi.json" | jq '.info, (.paths | keys)'
 curl -fsS "$BASE_URL/donations/analytics" | jq '.dataSource, .summary'
 curl -fsS "$BASE_URL/donations/explore-summary" | jq '.endpointVersion, .generatedAtUtc, .dataSource'
-curl -fsS "$BASE_URL/reports/tier1-analytics" | jq '.generatedAtUtc, .residents.dataSource'
+curl -fsS "$BASE_URL/donations/next-month-forecast" | jq '.endpointVersion, .predictedMonth, .predictedTotalEstimatedValue, .predictionRange'
+curl -fsS "$BASE_URL/reports/tier1-analytics" | jq '.generatedAtUtc, .residents.dataSource, .safehousePerformance.dataSource, .reintegration.summary'
 curl -fsS "$BASE_URL/impact/analytics" | jq '.pipelineName, .generatedAtUtc, .metricHighlights'
 ```
 
 Expected:
 
 - `/health`: `status: ok`, `buildId` = deployed commit SHA.
-- OpenAPI lists routes you care about (`/donations/analytics`, `/donations/explore-summary`, `/reports/tier1-analytics`, `/impact/analytics`, etc.).
+- OpenAPI lists routes you care about (`/donations/analytics`, `/donations/explore-summary`, `/donations/next-month-forecast`, `/reports/tier1-analytics`, `/impact/analytics`, etc.).
 - Donations endpoints: usually `dataSource: "database"` in production when DB is configured.
+- Tier-1 endpoint includes non-null `safehousePerformance` and `reintegration` blocks.
 - `/impact/analytics` returns pipeline metadata (`pipelineName`, `generatedAtUtc`) and highlights payload for Lighthouse merge.
 
 ---
@@ -140,6 +147,7 @@ Expected:
 1. Add or change routes in `ml-service/app/main.py` (and dependencies if needed).
 2. CI validates: `py_compile`, route greps, `startup.sh` safety checks (see `main_ml-pipelines-container.yml`).
 3. Local: `python -m py_compile app/main.py` (and `bash -n startup.sh` if you touch it).
+4. If `main.py` imports a new package (for example `joblib`, `scikit-learn`), add it to `ml-service/requirements.txt` in the same PR.
 
 ### After merge
 
@@ -151,6 +159,58 @@ Expected:
 
 - **Container:** confirm image tag/digest in the portal, **Log stream**, and `/health.buildId`. Do not use Kudu `wwwroot` as proof of running code.
 - **503:** empty **Startup Command**, **`WEBSITES_PORT=8000`**, image pull logs — see “Smoke test returns 503” below.
+- **502 from backend analytics cards (local):** check `backend/Lighthouse.Web/appsettings.Development.json` `SocialMediaMlApi.BaseUrl` matches your local ml-service port (`http://127.0.0.1:8001` if using `uvicorn --port 8001`).
+
+### Forecast endpoint troubleshooting (`/donations/next-month-forecast`)
+
+If forecast is blank in UI, run this first:
+
+```bash
+curl -fsS "https://<ml-service>.azurewebsites.net/donations/next-month-forecast" | jq .
+```
+
+Common outcomes:
+
+- `dataSource: "error"` + `Forecast model artifact not found: ...`
+  - The container image does not include `donation_prediction_next_month_model.joblib`.
+  - Ensure workflow copies `ml-pipelines/artifacts/donation_prediction_next_month_model.joblib` into `ml-service/artifacts/` **before Docker build**.
+  - Ensure Dockerfile includes `COPY artifacts /app/artifacts`.
+  - Redeploy container image.
+- `No module named 'joblib'` or `No module named 'sklearn'`
+  - Add missing package(s) to `ml-service/requirements.txt` and rebuild.
+- `dataSource: "database-error"`
+  - Verify DB connection settings (`SOCIAL_MEDIA_DB_URL` or `ConnectionStrings__DefaultConnection`) and DB reachability.
+
+To confirm model file exists in running container (App Service SSH):
+
+```bash
+ls -la /app/artifacts
+python - <<'PY'
+import os
+print(os.path.isfile('/app/artifacts/donation_prediction_next_month_model.joblib'))
+PY
+```
+
+Expected: `True`.
+
+### Tier-1 safehouse/reintegration troubleshooting (`/reports/tier1-analytics`)
+
+Run:
+
+```bash
+curl -fsS "https://<ml-service>.azurewebsites.net/reports/tier1-analytics" | jq '.safehousePerformance, .reintegration'
+```
+
+Interpretation:
+
+- `safehousePerformance.dataSource` of `database-pipeline` or `csv-pipeline`
+  - Preferred pipeline-first source (`safehouse_monthly_metrics` table or dataset).
+- `safehousePerformance.dataSource` of `derived-db-fallback`
+  - Pipeline source unavailable; service derived safehouse KPIs from residents + education + health tables.
+- `reintegration.summary.successRate` near `0` with non-zero `eligibleCount`
+  - Check `case_status`, `reintegration_status`, and `date_closed` quality in `residents`.
+- `loadWarning` is populated
+  - Endpoint is still serving data, but warns that fallback mode is active or an upstream source failed.
 
 ---
 

@@ -14,6 +14,8 @@ public class SocialMediaMlApiOptions
     public string DonationsAnalyticsPath { get; set; } = "/donations/analytics";
     /// <summary>Notebook-aligned EDA JSON; defaults to /donations/explore-summary.</summary>
     public string DonationsExploreSummaryPath { get; set; } = "/donations/explore-summary";
+    /// <summary>Next-month donations forecast endpoint; defaults to /donations/next-month-forecast.</summary>
+    public string DonationsForecastPath { get; set; } = "/donations/next-month-forecast";
     /// <summary>Tier-1 program analytics (residents, education, health). Defaults to /reports/tier1-analytics.</summary>
     public string ProgramsTier1AnalyticsPath { get; set; } = "/reports/tier1-analytics";
     public string? ApiKey { get; set; }
@@ -77,6 +79,15 @@ public class SocialMediaAnalyticsClient
             : _options.DonationsExploreSummaryPath;
 
         return await _httpClient.GetFromJsonAsync<DonationsExploreSummaryResponse>(path, JsonReadOptions, cancellationToken);
+    }
+
+    public async Task<DonationsForecastResponse?> GetDonationsForecastAsync(CancellationToken cancellationToken = default)
+    {
+        var path = string.IsNullOrWhiteSpace(_options.DonationsForecastPath)
+            ? "/donations/next-month-forecast"
+            : _options.DonationsForecastPath;
+
+        return await _httpClient.GetFromJsonAsync<DonationsForecastResponse>(path, JsonReadOptions, cancellationToken);
     }
 
     public async Task<ProgramsTier1AnalyticsResponse?> GetProgramsTier1AnalyticsAsync(CancellationToken cancellationToken = default)
@@ -188,6 +199,42 @@ public record DonationsExploreDataQuality(
     int DistinctChannelSources
 );
 
+public record DonationsForecastResponse(
+    string GeneratedAtUtc,
+    string DataSource,
+    string LoadWarning,
+    string EndpointVersion,
+    string ModelName,
+    DonationsForecastModelMetrics? ModelMetrics,
+    string? LatestObservedMonth,
+    string? PredictedMonth,
+    decimal? PredictedTotalEstimatedValue,
+    DonationsForecastRange? PredictionRange,
+    DonationsForecastFeatureSnapshot? FeatureSnapshot
+);
+
+public record DonationsForecastModelMetrics(
+    string Model,
+    decimal TestMae,
+    decimal TestRmse,
+    decimal TestWapePct,
+    decimal TestSmapePct,
+    decimal TestR2
+);
+
+public record DonationsForecastRange(
+    decimal Lower,
+    decimal Upper
+);
+
+public record DonationsForecastFeatureSnapshot(
+    decimal? LagTotal1,
+    decimal? Rolling6TotalMean,
+    int? MonthNum,
+    decimal? AvgGiftValue,
+    int? UniqueSupporters
+);
+
 public record SocialMediaAnalyticsResponse(
     string GeneratedAtUtc,
     string Currency,
@@ -234,7 +281,9 @@ public record ProgramsTier1AnalyticsResponse(
     string GeneratedAtUtc,
     ResidentsTier1Section Residents,
     EducationTier1Section Education,
-    HealthWellbeingTier1Section HealthWellbeing
+    HealthWellbeingTier1Section HealthWellbeing,
+    SafehousePerformanceSection SafehousePerformance,
+    ReintegrationSection Reintegration
 );
 
 public record ResidentsTier1Section(
@@ -312,4 +361,47 @@ public record ProgramsTier1ModelQuality(
     double? HoldoutMae,
     double? HoldoutRmse,
     double? HoldoutR2
+);
+
+public record SafehousePerformanceSection(
+    string DataSource,
+    string LoadWarning,
+    SafehousePerformanceSummary Summary,
+    IReadOnlyList<SafehousePerformanceRow> Rows,
+    IReadOnlyList<SafehousePerformanceRow> TopSafehouses,
+    IReadOnlyList<SafehousePerformanceRow> BottomSafehouses
+);
+
+public record SafehousePerformanceSummary(
+    int SafehouseCount,
+    string? LatestMonth
+);
+
+public record SafehousePerformanceRow(
+    string SafehouseId,
+    int ActiveResidents,
+    decimal AvgEducationProgress,
+    decimal AvgHealthScore,
+    decimal PerformanceScore
+);
+
+public record ReintegrationSection(
+    string DataSource,
+    string LoadWarning,
+    ReintegrationSummary Summary,
+    IReadOnlyList<ReintegrationTrendRow> MonthlyTrend
+);
+
+public record ReintegrationSummary(
+    int LookbackMonths,
+    int SuccessCount,
+    int EligibleCount,
+    decimal SuccessRate
+);
+
+public record ReintegrationTrendRow(
+    string Month,
+    int SuccessCount,
+    int EligibleCount,
+    decimal SuccessRate
 );
