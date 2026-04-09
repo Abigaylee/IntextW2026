@@ -731,6 +731,12 @@ _donations_forecast_cache: dict[str, Any] = {
 }
 _donations_forecast_refreshing = False
 _donations_forecast_lock = threading.Lock()
+_tier1_analytics_cache: dict[str, Any] = {
+    'payload': None,
+    'cachedAtUtc': None,
+}
+_tier1_analytics_refreshing = False
+_tier1_analytics_lock = threading.Lock()
 
 
 def _compute_donations_signature(df: pd.DataFrame) -> str:
@@ -1077,6 +1083,112 @@ def _safe_load_donations_next_month_forecast() -> dict[str, Any]:
         }
 
 
+def _tier1_cache_path() -> Path:
+    root = _artifact_root().resolve()
+    return Path(
+        os.getenv(
+            'TIER1_ANALYTICS_CACHE_PATH',
+            str(root / 'artifacts' / 'tier1_analytics_cache.json'),
+        )
+    )
+
+
+def _read_tier1_cache_file() -> tuple[dict[str, Any] | None, str | None]:
+    path = _tier1_cache_path()
+    if not path.is_file():
+        return None, None
+    try:
+        payload = json.loads(path.read_text(encoding='utf-8'))
+        data = payload.get('data')
+        cached_at = payload.get('cachedAtUtc')
+        if isinstance(data, dict):
+            return data, str(cached_at) if isinstance(cached_at, str) else None
+    except Exception:
+        return None, None
+    return None, None
+
+
+def _write_tier1_cache_file(payload: dict[str, Any], cached_at_utc: str) -> None:
+    path = _tier1_cache_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({'cachedAtUtc': cached_at_utc, 'data': payload}, indent=2), encoding='utf-8')
+
+
+def _build_tier1_analytics_and_cache() -> dict[str, Any]:
+    payload = safe_build_tier1_analytics()
+    cached_at_utc = datetime.now(timezone.utc).isoformat()
+    _tier1_analytics_cache['payload'] = payload
+    _tier1_analytics_cache['cachedAtUtc'] = cached_at_utc
+    _write_tier1_cache_file(payload, cached_at_utc)
+    return payload
+
+
+def _safe_load_tier1_analytics() -> dict[str, Any]:
+    try:
+        ttl_seconds = int(os.getenv('TIER1_ANALYTICS_CACHE_TTL_SECONDS', '43200'))  # default 12h
+        now_ts = datetime.now(timezone.utc).timestamp()
+
+        mem_payload = _tier1_analytics_cache.get('payload')
+        mem_cached_at = _tier1_analytics_cache.get('cachedAtUtc')
+        if not isinstance(mem_payload, dict):
+            file_payload, file_cached_at = _read_tier1_cache_file()
+            if isinstance(file_payload, dict):
+                _tier1_analytics_cache['payload'] = file_payload
+                _tier1_analytics_cache['cachedAtUtc'] = file_cached_at
+                mem_payload = file_payload
+                mem_cached_at = file_cached_at
+
+        is_fresh = False
+        if isinstance(mem_payload, dict) and isinstance(mem_cached_at, str):
+            try:
+                cached_ts = datetime.fromisoformat(mem_cached_at).timestamp()
+                is_fresh = (now_ts - cached_ts) < ttl_seconds
+            except Exception:
+                is_fresh = False
+
+        if isinstance(mem_payload, dict) and is_fresh:
+            return mem_payload
+
+        # Stale-while-refresh for tier1: return stale payload while refreshing in background.
+        if isinstance(mem_payload, dict):
+            global _tier1_analytics_refreshing
+            with _tier1_analytics_lock:
+                should_start = not _tier1_analytics_refreshing
+                if should_start:
+                    _tier1_analytics_refreshing = True
+
+            if should_start:
+                def _refresh_tier1():
+                    global _tier1_analytics_refreshing
+                    try:
+                        _build_tier1_analytics_and_cache()
+                    finally:
+                        with _tier1_analytics_lock:
+                            _tier1_analytics_refreshing = False
+
+                threading.Thread(target=_refresh_tier1, daemon=True).start()
+
+            stale = dict(mem_payload)
+            stale['isRefreshing'] = True
+            stale['loadWarning'] = (
+                (str(stale.get('loadWarning') or '') + ' ').strip()
+                + 'Showing cached snapshot while analytics refresh runs in background.'
+            ).strip()
+            return stale
+
+        # Cold start (no snapshot): build once.
+        return _build_tier1_analytics_and_cache()
+    except Exception as ex:
+        return {
+            'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
+            'residents': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'totalResidents': 0, 'activeResidents': 0, 'distinctSafehouses': 0}, 'chartRows': [], 'secondaryChartRows': []},
+            'education': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'totalRecords': 0, 'uniqueResidents': 0, 'avgAttendancePercent': None, 'avgProgressPercent': None}, 'chartRows': []},
+            'healthWellbeing': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'totalRecords': 0, 'uniqueResidents': 0, 'avgGeneralHealthScore': None, 'medianGeneralHealthScore': None, 'avgNutritionScore': None, 'avgSleepQualityScore': None, 'avgEnergyLevelScore': None, 'medicalCheckupShare': None, 'dentalCheckupShare': None, 'psychologicalCheckupShare': None}},
+            'safehousePerformance': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'safehouseCount': 0, 'latestMonth': None}, 'rows': [], 'topSafehouses': [], 'bottomSafehouses': []},
+            'reintegration': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'lookbackMonths': 12, 'successCount': 0, 'eligibleCount': 0, 'successRate': 0.0}, 'monthlyTrend': []},
+        }
+
+
 app = FastAPI(
     title='Lighthouse ML API',
     description='Social media analytics, donations pipeline trends, and tier-1 program analytics for admin dashboard.',
@@ -1139,4 +1251,4 @@ def donations_next_month_forecast() -> dict[str, Any]:
 @app.get('/reports/tier1-analytics')
 def reports_tier1_analytics() -> dict[str, Any]:
     """Residents, education, and health & wellbeing from live DB (when configured) or CSV + notebook artifacts."""
-    return safe_build_tier1_analytics()
+    return _safe_load_tier1_analytics()

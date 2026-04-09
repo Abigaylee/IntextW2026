@@ -1,0 +1,423 @@
+{
+  "cachedAtUtc": "2026-04-09T17:51:34.275687+00:00",
+  "data": {
+    "generatedAtUtc": "2026-04-09T17:51:30.040498+00:00",
+    "residents": {
+      "dataSource": "database",
+      "loadWarning": "",
+      "summary": {
+        "totalResidents": 66,
+        "activeResidents": 33,
+        "distinctSafehouses": 9
+      },
+      "chartRows": [
+        {
+          "label": "Low",
+          "count": 34,
+          "share": 0.5152
+        },
+        {
+          "label": "Medium",
+          "count": 20,
+          "share": 0.303
+        },
+        {
+          "label": "High",
+          "count": 6,
+          "share": 0.0909
+        },
+        {
+          "label": "Unknown",
+          "count": 5,
+          "share": 0.0758
+        },
+        {
+          "label": "Critical",
+          "count": 1,
+          "share": 0.0152
+        }
+      ],
+      "secondaryChartRows": [
+        {
+          "label": "Active",
+          "count": 33,
+          "share": 0.5
+        },
+        {
+          "label": "Closed",
+          "count": 20,
+          "share": 0.303
+        },
+        {
+          "label": "Transferred",
+          "count": 13,
+          "share": 0.197
+        }
+      ],
+      "safehouseRows": [
+        {
+          "safehouseId": "1",
+          "count": 12
+        },
+        {
+          "safehouseId": "2",
+          "count": 11
+        },
+        {
+          "safehouseId": "4",
+          "count": 9
+        },
+        {
+          "safehouseId": "7",
+          "count": 8
+        },
+        {
+          "safehouseId": "3",
+          "count": 7
+        },
+        {
+          "safehouseId": "8",
+          "count": 6
+        },
+        {
+          "safehouseId": "5",
+          "count": 6
+        },
+        {
+          "safehouseId": "6",
+          "count": 5
+        }
+      ],
+      "topDrivers": [
+        {
+          "label": "initial risk level Low",
+          "importance": 0.035306
+        },
+        {
+          "label": "length of stay months",
+          "importance": 0.03199
+        },
+        {
+          "label": "age upon admission months",
+          "importance": 0.031268
+        },
+        {
+          "label": "present age months",
+          "importance": 0.028577
+        },
+        {
+          "label": "safehouse id",
+          "importance": 0.024902
+        },
+        {
+          "label": "family is 4ps",
+          "importance": 0.024453
+        },
+        {
+          "label": "initial risk level Medium",
+          "importance": 0.022723
+        },
+        {
+          "label": "days enrolled to closed",
+          "importance": 0.020771
+        }
+      ],
+      "pipelineTarget": "current_risk_level (multiclass)",
+      "modelNote": "Multiclass model context from ml-pipelines (current risk level). Drivers are aggregate feature importances\u2014indicative, not individual predictions. Live data from PostgreSQL.",
+      "businessQuestion": null,
+      "modelQuality": null
+    },
+    "education": {
+      "dataSource": "database",
+      "loadWarning": "",
+      "summary": {
+        "totalRecords": 534,
+        "uniqueResidents": 60,
+        "avgAttendancePercent": 0.74,
+        "avgProgressPercent": 78.54
+      },
+      "chartRows": [
+        {
+          "label": "InProgress",
+          "count": 424,
+          "share": 0.794
+        },
+        {
+          "label": "NotStarted",
+          "count": 60,
+          "share": 0.1124
+        },
+        {
+          "label": "Completed",
+          "count": 50,
+          "share": 0.0936
+        }
+      ],
+      "secondaryChartRows": [],
+      "safehouseRows": [],
+      "topDrivers": [
+        {
+          "label": "note progress tag",
+          "importance": 0.732263
+        },
+        {
+          "label": "progress percent",
+          "importance": 0.112749
+        },
+        {
+          "label": "attendance rate",
+          "importance": 0.046282
+        },
+        {
+          "label": "school name",
+          "importance": 0.032484
+        },
+        {
+          "label": "record date",
+          "importance": 0.023652
+        },
+        {
+          "label": "record year",
+          "importance": 0.013065
+        },
+        {
+          "label": "record month",
+          "importance": 0.009901
+        }
+      ],
+      "pipelineTarget": "completion_status",
+      "modelNote": "Progress and completion patterns from the education records pipeline. Top drivers are notebook feature importances. Live data from PostgreSQL.",
+      "businessQuestion": null,
+      "modelQuality": null
+    },
+    "healthWellbeing": {
+      "dataSource": "database",
+      "loadWarning": "",
+      "summary": {
+        "totalRecords": 534,
+        "uniqueResidents": 60,
+        "avgGeneralHealthScore": 3.195,
+        "medianGeneralHealthScore": 3.15,
+        "avgNutritionScore": 3.217,
+        "avgSleepQualityScore": 3.123,
+        "avgEnergyLevelScore": 2.981,
+        "medicalCheckupShare": 0.5824,
+        "dentalCheckupShare": 0.3596,
+        "psychologicalCheckupShare": 0.4775
+      },
+      "chartRows": [],
+      "secondaryChartRows": [],
+      "safehouseRows": [],
+      "topDrivers": [
+        {
+          "label": "nutrition score",
+          "importance": 0.238707
+        },
+        {
+          "label": "energy level score",
+          "importance": 0.188903
+        },
+        {
+          "label": "sleep quality score",
+          "importance": 0.182033
+        },
+        {
+          "label": "weight kg",
+          "importance": 0.131808
+        },
+        {
+          "label": "height cm",
+          "importance": 0.074462
+        },
+        {
+          "label": "bmi",
+          "importance": 0.074024
+        },
+        {
+          "label": "record month",
+          "importance": 0.04515
+        },
+        {
+          "label": "record year",
+          "importance": 0.033383
+        }
+      ],
+      "pipelineTarget": "general_health_score",
+      "modelNote": "Regression on general health score (notebook RandomForest holdout metrics where available). Scores are operational indicators, not clinical diagnoses. Live data from PostgreSQL.",
+      "businessQuestion": "Which factors are associated with better resident health and how can we reliably predict general health scores for operational planning?",
+      "modelQuality": {
+        "selectedModel": "RandomForest",
+        "holdoutMae": 0.11892074766355132,
+        "holdoutRmse": 0.1679298956980531,
+        "holdoutR2": 0.552485490601786
+      }
+    },
+    "safehousePerformance": {
+      "dataSource": "database-pipeline",
+      "loadWarning": "",
+      "summary": {
+        "safehouseCount": 9,
+        "latestMonth": "2027-02"
+      },
+      "rows": [
+        {
+          "safehouseId": "1",
+          "activeResidents": 10,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.3
+        },
+        {
+          "safehouseId": "2",
+          "activeResidents": 8,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.225
+        },
+        {
+          "safehouseId": "4",
+          "activeResidents": 8,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.225
+        },
+        {
+          "safehouseId": "7",
+          "activeResidents": 8,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.225
+        },
+        {
+          "safehouseId": "3",
+          "activeResidents": 7,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.1875
+        },
+        {
+          "safehouseId": "5",
+          "activeResidents": 6,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.15
+        },
+        {
+          "safehouseId": "8",
+          "activeResidents": 6,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.15
+        },
+        {
+          "safehouseId": "6",
+          "activeResidents": 5,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.1125
+        },
+        {
+          "safehouseId": "9",
+          "activeResidents": 2,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.0
+        }
+      ],
+      "topSafehouses": [
+        {
+          "safehouseId": "1",
+          "activeResidents": 10,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.3
+        },
+        {
+          "safehouseId": "2",
+          "activeResidents": 8,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.225
+        },
+        {
+          "safehouseId": "4",
+          "activeResidents": 8,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.225
+        }
+      ],
+      "bottomSafehouses": [
+        {
+          "safehouseId": "9",
+          "activeResidents": 2,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.0
+        },
+        {
+          "safehouseId": "6",
+          "activeResidents": 5,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.1125
+        },
+        {
+          "safehouseId": "8",
+          "activeResidents": 6,
+          "avgEducationProgress": 0.0,
+          "avgHealthScore": 0.0,
+          "performanceScore": 0.15
+        }
+      ]
+    },
+    "reintegration": {
+      "dataSource": "database",
+      "loadWarning": "",
+      "summary": {
+        "lookbackMonths": 12,
+        "successCount": 4,
+        "eligibleCount": 7,
+        "successRate": 0.5714
+      },
+      "monthlyTrend": [
+        {
+          "month": "2025-07",
+          "successCount": 1,
+          "eligibleCount": 1,
+          "successRate": 1.0
+        },
+        {
+          "month": "2025-08",
+          "successCount": 1,
+          "eligibleCount": 2,
+          "successRate": 0.5
+        },
+        {
+          "month": "2026-02",
+          "successCount": 0,
+          "eligibleCount": 1,
+          "successRate": 0.0
+        },
+        {
+          "month": "2026-04",
+          "successCount": 1,
+          "eligibleCount": 1,
+          "successRate": 1.0
+        },
+        {
+          "month": "2026-09",
+          "successCount": 1,
+          "eligibleCount": 1,
+          "successRate": 1.0
+        },
+        {
+          "month": "2026-10",
+          "successCount": 0,
+          "eligibleCount": 1,
+          "successRate": 0.0
+        }
+      ]
+    }
+  }
+}

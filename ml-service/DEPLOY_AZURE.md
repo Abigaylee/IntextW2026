@@ -113,7 +113,7 @@ Verify (public impact):
 Redeploy the frontend when UI changes. As admin, open:
 
 - `/Admin/SocialMedia`
-- `/Admin/Analytics` (Reports & analytics — donations ML, tier-1, **Donations notebook EDA** card when the new endpoints are live)
+- `/Admin/Analytics` (Reports & analytics — donations ML, forecast, tier-1, safehouse comparison, reintegration)
 
 ---
 
@@ -126,7 +126,7 @@ curl -fsS "$BASE_URL/openapi.json" | jq '.info, (.paths | keys)'
 curl -fsS "$BASE_URL/donations/analytics" | jq '.dataSource, .summary'
 curl -fsS "$BASE_URL/donations/explore-summary" | jq '.endpointVersion, .generatedAtUtc, .dataSource'
 curl -fsS "$BASE_URL/donations/next-month-forecast" | jq '.endpointVersion, .predictedMonth, .predictedTotalEstimatedValue, .predictionRange'
-curl -fsS "$BASE_URL/reports/tier1-analytics" | jq '.generatedAtUtc, .residents.dataSource'
+curl -fsS "$BASE_URL/reports/tier1-analytics" | jq '.generatedAtUtc, .residents.dataSource, .safehousePerformance.dataSource, .reintegration.summary'
 curl -fsS "$BASE_URL/impact/analytics" | jq '.pipelineName, .generatedAtUtc, .metricHighlights'
 ```
 
@@ -135,6 +135,7 @@ Expected:
 - `/health`: `status: ok`, `buildId` = deployed commit SHA.
 - OpenAPI lists routes you care about (`/donations/analytics`, `/donations/explore-summary`, `/donations/next-month-forecast`, `/reports/tier1-analytics`, `/impact/analytics`, etc.).
 - Donations endpoints: usually `dataSource: "database"` in production when DB is configured.
+- Tier-1 endpoint includes non-null `safehousePerformance` and `reintegration` blocks.
 - `/impact/analytics` returns pipeline metadata (`pipelineName`, `generatedAtUtc`) and highlights payload for Lighthouse merge.
 
 ---
@@ -191,6 +192,25 @@ PY
 ```
 
 Expected: `True`.
+
+### Tier-1 safehouse/reintegration troubleshooting (`/reports/tier1-analytics`)
+
+Run:
+
+```bash
+curl -fsS "https://<ml-service>.azurewebsites.net/reports/tier1-analytics" | jq '.safehousePerformance, .reintegration'
+```
+
+Interpretation:
+
+- `safehousePerformance.dataSource` of `database-pipeline` or `csv-pipeline`
+  - Preferred pipeline-first source (`safehouse_monthly_metrics` table or dataset).
+- `safehousePerformance.dataSource` of `derived-db-fallback`
+  - Pipeline source unavailable; service derived safehouse KPIs from residents + education + health tables.
+- `reintegration.summary.successRate` near `0` with non-zero `eligibleCount`
+  - Check `case_status`, `reintegration_status`, and `date_closed` quality in `residents`.
+- `loadWarning` is populated
+  - Endpoint is still serving data, but warns that fallback mode is active or an upstream source failed.
 
 ---
 

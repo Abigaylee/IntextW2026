@@ -119,6 +119,51 @@ type ProgramsTier1Payload = {
       psychologicalCheckupShare: number | null
     }
   }
+  safehousePerformance: {
+    dataSource: string
+    loadWarning: string
+    summary: {
+      safehouseCount: number
+      latestMonth: string | null
+    }
+    rows: Array<{
+      safehouseId: string
+      activeResidents: number
+      avgEducationProgress: number
+      avgHealthScore: number
+      performanceScore: number
+    }>
+    topSafehouses: Array<{
+      safehouseId: string
+      activeResidents: number
+      avgEducationProgress: number
+      avgHealthScore: number
+      performanceScore: number
+    }>
+    bottomSafehouses: Array<{
+      safehouseId: string
+      activeResidents: number
+      avgEducationProgress: number
+      avgHealthScore: number
+      performanceScore: number
+    }>
+  }
+  reintegration: {
+    dataSource: string
+    loadWarning: string
+    summary: {
+      lookbackMonths: number
+      successCount: number
+      eligibleCount: number
+      successRate: number
+    }
+    monthlyTrend: Array<{
+      month: string
+      successCount: number
+      eligibleCount: number
+      successRate: number
+    }>
+  }
 }
 
 function formatPct01(x: number | null | undefined) {
@@ -297,6 +342,28 @@ function buildTopInsights(
     )
     if (h) {
       cands.push({ priority: 7, text: h })
+    }
+    const reintegrationRate = programsTier1.reintegration?.summary?.successRate
+    if (typeof reintegrationRate === 'number') {
+      if (reintegrationRate < 0.55) {
+        cands.push({
+          priority: 3,
+          text: `Reintegration success is ${Math.round(reintegrationRate * 100)}% over the last 12 months—prioritize aftercare follow-ups for recently closed cases.`,
+        })
+      } else if (reintegrationRate >= 0.75) {
+        cands.push({
+          priority: 8,
+          text: `Reintegration success is ${Math.round(reintegrationRate * 100)}% over the last 12 months—capture and replicate what high-performing teams are doing.`,
+        })
+      }
+    }
+    const topSafehouse = programsTier1.safehousePerformance?.topSafehouses?.[0]
+    const bottomSafehouse = programsTier1.safehousePerformance?.bottomSafehouses?.[0]
+    if (topSafehouse && bottomSafehouse && topSafehouse.safehouseId !== bottomSafehouse.safehouseId) {
+      cands.push({
+        priority: 4,
+        text: `Safehouse ${topSafehouse.safehouseId} is currently leading while ${bottomSafehouse.safehouseId} trails—use peer coaching on education and wellbeing routines.`,
+      })
     }
   }
 
@@ -508,6 +575,20 @@ export function AdminAnalytics() {
   }, [donationsMl])
 
   const momTip = useMemo(() => (mom ? momTipMessage(mom) : null), [mom])
+  const forecastAmount =
+    donationsForecast?.predictedTotalEstimatedValue != null
+      ? new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(
+          donationsForecast.predictedTotalEstimatedValue,
+        )
+      : '—'
+  const forecastRangeLower =
+    donationsForecast?.predictionRange && Number.isFinite(donationsForecast.predictionRange.lower)
+      ? donationsForecast.predictionRange.lower
+      : null
+  const forecastRangeUpper =
+    donationsForecast?.predictionRange && Number.isFinite(donationsForecast.predictionRange.upper)
+      ? donationsForecast.predictionRange.upper
+      : null
 
   return (
     <div>
@@ -518,27 +599,35 @@ export function AdminAnalytics() {
       {err ? <div className="alert alert-warning">{err}</div> : null}
 
       <div className="row g-3 mb-4">
-        <div className="col-lg-6 align-self-start">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body d-flex flex-column justify-content-center" style={{ minHeight: 260 }}>
+        <div className="col-lg-6">
+          <div className="card border-0 shadow-sm h-100">
+            <div className="card-body d-flex flex-column h-100 align-items-center text-center" style={{ minHeight: 360 }}>
               <div className="text-uppercase small text-secondary fw-semibold mb-2">Next month estimated donations</div>
-              <div className="display-5 fw-bold mb-1">
-                {donationsForecast?.predictedTotalEstimatedValue != null
-                  ? donationsForecast.predictedTotalEstimatedValue.toLocaleString()
-                  : '—'}
-              </div>
-              <div className="small text-secondary">
-                {donationsForecast?.predictedMonth ? `For ${donationsForecast.predictedMonth}` : 'Forecast unavailable'}
+              <div className="my-auto">
+                <div className="display-4 fw-bold mb-1">{forecastAmount}</div>
+                <div className="small text-secondary">{donationsForecast?.predictedMonth ? `For ${donationsForecast.predictedMonth}` : 'Forecast unavailable'}</div>
+                {forecastRangeLower != null && forecastRangeUpper != null ? (
+                  <div className="small text-secondary mt-2">
+                    Expected range:{' '}
+                    {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(
+                      forecastRangeLower,
+                    )}{' '}
+                    -{' '}
+                    {new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(
+                      forecastRangeUpper,
+                    )}
+                  </div>
+                ) : null}
               </div>
               {donationsForecastErr ? (
-                <div className="alert alert-warning py-2 small mt-3 mb-0">Could not load forecast.</div>
+                <div className="alert alert-warning py-2 small mt-auto mb-0">Could not load forecast.</div>
               ) : null}
             </div>
           </div>
         </div>
         <div className="col-lg-6">
           <div className="card border-0 shadow-sm h-100">
-            <div className="card-body">
+            <div className="card-body d-flex flex-column h-100" style={{ minHeight: 360 }}>
               <h2 className="h5 mb-1">Donation trends</h2>
               <p className="small text-secondary mb-2">Estimated gift value by month from your live records.</p>
               {momTip ? (
@@ -548,7 +637,7 @@ export function AdminAnalytics() {
               ) : (
                 <p className="small text-secondary mb-3">Add a couple of months of gifts to see month-over-month change.</p>
               )}
-              <div style={{ width: '100%', height: 260 }}>
+              <div style={{ width: '100%', height: 260 }} className="mt-auto">
                 <ResponsiveContainer>
                   <BarChart data={monthly}>
                     <XAxis dataKey="month" tick={{ fontSize: 10 }} angle={-35} textAnchor="end" height={52} />
@@ -667,124 +756,189 @@ export function AdminAnalytics() {
         </div>
       </div>
 
-      <h2 className="h5 mb-2">Residents, learning &amp; health</h2>
-      <p className="small text-secondary mb-3">Program-level picture: who is in care, how education records look, and wellbeing check-in patterns.</p>
+      <h2 className="h5 mb-2">Programs &amp; outcomes</h2>
+      <p className="small text-secondary mb-3">
+        Annual accomplishment view: Caring (residents), service delivery by safehouse, reintegration outcomes, and Teaching/Healing indicators.
+      </p>
       {programsTier1Err ? (
         <div className="alert alert-warning mb-3">Program snapshot unavailable right now.</div>
       ) : null}
       {programsTier1 ? (
-        <div className="row g-3 mb-4">
-          <div className="col-lg-4">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
-                <h3 className="h6 mb-2">Residents in care</h3>
-                {programsTier1.residents.loadWarning ? (
-                  <div className="alert alert-info py-2 small mb-2">{programsTier1.residents.loadWarning}</div>
-                ) : null}
-                <p className="small mb-3">
-                  {riskDom && statusDom ? (
-                    <>
-                      Most residents are <strong>{riskDom.label}</strong> risk and <strong>{statusDom.label}</strong> in
-                      case status ({riskDom.pct}% / {statusDom.pct}% of the roster). Put extra attention on higher-risk
-                      cases and anyone moving between statuses.
-                    </>
-                  ) : (
-                    <>Use risk and case status together to see where supervision and reintegration support may matter most.</>
-                  )}
-                </p>
-                <div className="d-flex flex-wrap gap-3 small text-secondary mb-3">
-                  <span>
-                    <strong className="text-body">{programsTier1.residents.summary.totalResidents}</strong> in roster
-                  </span>
-                  <span>
-                    <strong className="text-body">{programsTier1.residents.summary.activeResidents}</strong> active
-                  </span>
-                  <span>
-                    <strong className="text-body">{programsTier1.residents.summary.distinctSafehouses}</strong> sites
-                  </span>
-                </div>
-                <div className="row g-2">
-                  <div className="col-md-6">
-                    <div className="small text-secondary mb-1">Risk level</div>
-                    <div style={{ width: '100%', height: 180 }}>
-                      <ResponsiveContainer>
-                        <BarChart data={programsTier1.residents.chartRows} margin={{ bottom: 4, left: 0 }}>
-                          <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={60} />
-                          <YAxis width={32} tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={tooltipCountFormatter('Residents')} />
-                          <Bar dataKey="count" fill="var(--bs-primary)" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                  <div className="col-md-6">
-                    <div className="small text-secondary mb-1">Case status</div>
-                    <div style={{ width: '100%', height: 180 }}>
-                      <ResponsiveContainer>
-                        <BarChart data={programsTier1.residents.secondaryChartRows} margin={{ bottom: 4, left: 0 }}>
-                          <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={60} />
-                          <YAxis width={32} tick={{ fontSize: 10 }} />
-                          <Tooltip formatter={tooltipCountFormatter('Residents')} />
-                          <Bar dataKey="count" fill="var(--bs-success)" radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="col-lg-4">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
-                <h3 className="h6 mb-2">Education</h3>
-                {programsTier1.education.loadWarning ? (
-                  <div className="alert alert-info py-2 small mb-2">{programsTier1.education.loadWarning}</div>
-                ) : null}
-                <p className="small mb-3">
-                  {eduDom ? (
-                    <>
-                      Most records are <strong>{eduDom.label}</strong> ({eduDom.pct}% of entries).
-                      {programsTier1.education.summary.avgProgressPercent != null ? (
-                        <> Average reported progress is {programsTier1.education.summary.avgProgressPercent}%.</>
-                      ) : null}{' '}
-                      Prioritize tutoring or school follow-up where progress has stalled.
-                    </>
-                  ) : (
-                    <>Completion and progress patterns highlight where youth may need stronger academic support.</>
-                  )}
-                </p>
-                <div className="d-flex flex-wrap gap-3 small text-secondary mb-3">
-                  <span>
-                    <strong className="text-body">{programsTier1.education.summary.totalRecords}</strong> records
-                  </span>
-                  <span>
-                    <strong className="text-body">{programsTier1.education.summary.uniqueResidents}</strong> youth
-                  </span>
-                  {programsTier1.education.summary.avgAttendancePercent != null ? (
-                    <span>
-                      Avg attendance{' '}
-                      <strong className="text-body">{programsTier1.education.summary.avgAttendancePercent}</strong>
-                    </span>
+        <>
+          <h3 className="h6 text-uppercase text-secondary mb-2">Operations &amp; service delivery</h3>
+          <div className="row g-3 mb-3">
+            <div className="col-lg-4">
+              <div className="card border-0 shadow-sm h-100">
+                <div className="card-body">
+                  <h3 className="h6 mb-2">Caring: residents in care</h3>
+                  {programsTier1.residents.loadWarning ? (
+                    <div className="alert alert-info py-2 small mb-2">{programsTier1.residents.loadWarning}</div>
                   ) : null}
+                  <p className="small mb-3">
+                    {riskDom && statusDom ? (
+                      <>
+                        Most residents are <strong>{riskDom.label}</strong> risk and <strong>{statusDom.label}</strong> in case
+                        status ({riskDom.pct}% / {statusDom.pct}% of roster).
+                      </>
+                    ) : (
+                      <>Use risk and case status together to identify supervision and reintegration needs early.</>
+                    )}
+                  </p>
+                  <div className="d-flex flex-wrap gap-3 small text-secondary mb-3">
+                    <span>
+                      <strong className="text-body">{programsTier1.residents.summary.totalResidents}</strong> in roster
+                    </span>
+                    <span>
+                      <strong className="text-body">{programsTier1.residents.summary.activeResidents}</strong> active
+                    </span>
+                    <span>
+                      <strong className="text-body">{programsTier1.residents.summary.distinctSafehouses}</strong> sites
+                    </span>
+                  </div>
+                  <div className="row g-2">
+                    <div className="col-md-6">
+                      <div className="small text-secondary mb-1">Risk level</div>
+                      <div style={{ width: '100%', height: 180 }}>
+                        <ResponsiveContainer>
+                          <BarChart data={programsTier1.residents.chartRows} margin={{ bottom: 4, left: 0 }}>
+                            <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={60} />
+                            <YAxis width={32} tick={{ fontSize: 10 }} />
+                            <Tooltip formatter={tooltipCountFormatter('Residents')} />
+                            <Bar dataKey="count" fill="var(--bs-primary)" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                    <div className="col-md-6">
+                      <div className="small text-secondary mb-1">Case status</div>
+                      <div style={{ width: '100%', height: 180 }}>
+                        <ResponsiveContainer>
+                          <BarChart data={programsTier1.residents.secondaryChartRows} margin={{ bottom: 4, left: 0 }}>
+                            <XAxis dataKey="label" tick={{ fontSize: 10 }} interval={0} angle={-25} textAnchor="end" height={60} />
+                            <YAxis width={32} tick={{ fontSize: 10 }} />
+                            <Tooltip formatter={tooltipCountFormatter('Residents')} />
+                            <Bar dataKey="count" fill="var(--bs-success)" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="small text-secondary mb-1">Record status</div>
-                <div style={{ width: '100%', height: 200 }}>
-                  <ResponsiveContainer>
-                    <BarChart data={programsTier1.education.chartRows} margin={{ bottom: 4, left: 0 }}>
-                      <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                      <YAxis width={32} tick={{ fontSize: 10 }} />
-                      <Tooltip formatter={tooltipCountFormatter('Records')} />
-                      <Bar dataKey="count" fill="var(--bs-warning)" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+              </div>
+            </div>
+            <div className="col-lg-4">
+              <div className="card border-0 shadow-sm h-100">
+                <div className="card-body d-flex flex-column h-100">
+                  <h3 className="h6 mb-2">Safehouse performance comparison</h3>
+                  {programsTier1.safehousePerformance.loadWarning ? (
+                    <div className="alert alert-info py-2 small mb-2">{programsTier1.safehousePerformance.loadWarning}</div>
+                  ) : null}
+                  <p className="small mb-3">Higher bars mean better overall site performance this month. Start coaching with the lowest bar first.</p>
+                  <div className="d-flex flex-wrap gap-3 small text-secondary mb-2">
+                    <span>
+                      <strong className="text-body">{programsTier1.safehousePerformance.summary.safehouseCount}</strong> safehouses
+                    </span>
+                    {programsTier1.safehousePerformance.summary.latestMonth ? (
+                      <span>
+                        Latest month <strong className="text-body">{programsTier1.safehousePerformance.summary.latestMonth}</strong>
+                      </span>
+                    ) : null}
+                  </div>
+                  <div style={{ width: '100%', height: 180 }} className="mb-2 mt-1">
+                    <ResponsiveContainer>
+                      <BarChart data={programsTier1.safehousePerformance.rows.slice(0, 6)} margin={{ bottom: 4, left: 0 }}>
+                        <XAxis dataKey="safehouseId" tick={{ fontSize: 10 }} />
+                        <YAxis width={36} tick={{ fontSize: 10 }} domain={[0, 1]} />
+                        <Tooltip formatter={(value: unknown) => [typeof value === 'number' ? value.toFixed(2) : String(value), 'Score (0-1)']} />
+                        <Bar dataKey="performanceScore" fill="var(--bs-info)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <ul className="small mb-0 mt-auto">
+                    {programsTier1.safehousePerformance.topSafehouses.slice(0, 1).map((r) => (
+                      <li key={`top-${r.safehouseId}`}>Top: {r.safehouseId} (score {r.performanceScore.toFixed(2)})</li>
+                    ))}
+                    {programsTier1.safehousePerformance.bottomSafehouses.slice(0, 1).map((r) => (
+                      <li key={`bottom-${r.safehouseId}`}>Needs support: {r.safehouseId} (score {r.performanceScore.toFixed(2)})</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="col-lg-4">
+              <div className="card border-0 shadow-sm h-100">
+                <div className="card-body d-flex flex-column h-100">
+                  <h3 className="h6 mb-2">Reintegration success</h3>
+                  {programsTier1.reintegration.loadWarning ? (
+                    <div className="alert alert-info py-2 small mb-2">{programsTier1.reintegration.loadWarning}</div>
+                  ) : null}
+                  <div className="text-secondary small">12-month success rate</div>
+                  <div className="display-6 mb-2">{formatPct01(programsTier1.reintegration.summary.successRate)}</div>
+                  <div className="small text-secondary mb-2">
+                    {programsTier1.reintegration.summary.successCount} successful / {programsTier1.reintegration.summary.eligibleCount} eligible cases
+                  </div>
+                  <div style={{ width: '100%', height: 180 }} className="mt-1">
+                    <ResponsiveContainer>
+                      <BarChart data={programsTier1.reintegration.monthlyTrend.slice(-6)} margin={{ bottom: 4, left: 0 }}>
+                        <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                        <YAxis width={28} tick={{ fontSize: 10 }} />
+                        <Tooltip />
+                        <Bar dataKey="eligibleCount" fill="var(--bs-secondary)" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="successCount" fill="var(--bs-success)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="small mb-0 mt-auto">Operational note: prioritize aftercare contact on recently closed high-risk cases.</p>
                 </div>
               </div>
             </div>
           </div>
-          <div className="col-lg-4">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
+          <h3 className="h6 text-uppercase text-secondary mb-2">Outcomes (Teaching &amp; Healing)</h3>
+          <div className="row g-3 mb-4">
+            <div className="col-lg-6">
+              <div className="card border-0 shadow-sm h-100">
+                <div className="card-body">
+                  <h3 className="h6 mb-2">Teaching: education</h3>
+                  {programsTier1.education.loadWarning ? (
+                    <div className="alert alert-info py-2 small mb-2">{programsTier1.education.loadWarning}</div>
+                  ) : null}
+                  <p className="small mb-3">
+                    {eduDom ? (
+                      <>
+                        Most records are <strong>{eduDom.label}</strong> ({eduDom.pct}% of entries).
+                        {programsTier1.education.summary.avgProgressPercent != null ? (
+                          <> Average reported progress is {programsTier1.education.summary.avgProgressPercent}%.</>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>Completion and progress trends highlight where youth need stronger academic support.</>
+                    )}
+                  </p>
+                  <div className="d-flex flex-wrap gap-3 small text-secondary mb-3">
+                    <span>
+                      <strong className="text-body">{programsTier1.education.summary.totalRecords}</strong> records
+                    </span>
+                    <span>
+                      <strong className="text-body">{programsTier1.education.summary.uniqueResidents}</strong> youth
+                    </span>
+                  </div>
+                  <div className="small text-secondary mb-1">Record status</div>
+                  <div style={{ width: '100%', height: 200 }}>
+                    <ResponsiveContainer>
+                      <BarChart data={programsTier1.education.chartRows} margin={{ bottom: 4, left: 0 }}>
+                        <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                        <YAxis width={32} tick={{ fontSize: 10 }} />
+                        <Tooltip formatter={tooltipCountFormatter('Records')} />
+                        <Bar dataKey="count" fill="var(--bs-warning)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="col-lg-6">
+              <div className="card border-0 shadow-sm h-100">
+                <div className="card-body">
                 <h3 className="h6 mb-2">Health &amp; wellbeing</h3>
                 {programsTier1.healthWellbeing.loadWarning ? (
                   <div className="alert alert-info py-2 small mb-2">{programsTier1.healthWellbeing.loadWarning}</div>
@@ -850,7 +1004,8 @@ export function AdminAnalytics() {
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </>
       ) : !programsTier1Err ? (
         <p className="small text-secondary mb-4">Loading program snapshot…</p>
       ) : null}

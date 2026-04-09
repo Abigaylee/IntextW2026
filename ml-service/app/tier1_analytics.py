@@ -23,7 +23,9 @@ SELECT
     resident_id,
     safehouse_id,
     case_status::text AS case_status,
-    current_risk_level::text AS current_risk_level
+    current_risk_level::text AS current_risk_level,
+    reintegration_status::text AS reintegration_status,
+    date_closed
 FROM residents
 """
 
@@ -56,6 +58,21 @@ SELECT
     dental_checkup_done,
     psychological_checkup_done
 FROM health_wellbeing_records
+"""
+
+SAFEHOUSE_METRICS_SQL = """
+SELECT
+    safehouse_id,
+    month_start,
+    month_end,
+    active_residents,
+    avg_education_progress,
+    avg_health_score,
+    process_recording_count,
+    home_visitation_count,
+    incident_count,
+    notes
+FROM safehouse_monthly_metrics
 """
 
 
@@ -141,6 +158,29 @@ def _load_health_frame(root: Path) -> tuple[pd.DataFrame, str, str]:
         except Exception as ex:
             return pd.DataFrame(), 'error', str(ex)
     return pd.DataFrame(), 'missing-file', f'No database URL and health CSV missing: {csv_path}'
+
+
+def _load_safehouse_metrics_frame(root: Path) -> tuple[pd.DataFrame, str, str]:
+    csv_path = Path(os.getenv('SAFEHOUSE_MONTHLY_METRICS_PATH', str(root / 'datasets' / 'safehouse_monthly_metrics.csv')))
+    conn = resolve_db_connection_value()
+    if conn:
+        try:
+            df = fetch_dataframe(conn, SAFEHOUSE_METRICS_SQL)
+            return _normalize_frame_columns(df), 'database-pipeline', ''
+        except Exception as ex:
+            err = str(ex)
+            if csv_path.is_file():
+                try:
+                    return _read_csv_normalized(csv_path), 'csv-pipeline', f'Database query failed ({err}); using pipeline CSV fallback.'
+                except Exception as ex2:
+                    return pd.DataFrame(), 'error', f'Database: {err}; CSV: {ex2}'
+            return pd.DataFrame(), 'database-error', err
+    if csv_path.is_file():
+        try:
+            return _read_csv_normalized(csv_path), 'csv-pipeline', ''
+        except Exception as ex:
+            return pd.DataFrame(), 'error', str(ex)
+    return pd.DataFrame(), 'missing-file', f'No database URL and safehouse metrics CSV missing: {csv_path}'
 
 
 def _append_live_note(model_note: str | None, data_source: str) -> str | None:
@@ -274,6 +314,34 @@ def _empty_health_section(data_source: str, load_warning: str) -> dict[str, Any]
         'psychologicalCheckupShare': None,
     }
     return d
+
+
+def _empty_safehouse_performance_section(data_source: str, load_warning: str) -> dict[str, Any]:
+    return {
+        'dataSource': data_source,
+        'loadWarning': load_warning,
+        'summary': {
+            'safehouseCount': 0,
+            'latestMonth': None,
+        },
+        'rows': [],
+        'topSafehouses': [],
+        'bottomSafehouses': [],
+    }
+
+
+def _empty_reintegration_section(data_source: str, load_warning: str) -> dict[str, Any]:
+    return {
+        'dataSource': data_source,
+        'loadWarning': load_warning,
+        'summary': {
+            'lookbackMonths': 12,
+            'successCount': 0,
+            'eligibleCount': 0,
+            'successRate': 0.0,
+        },
+        'monthlyTrend': [],
+    }
 
 
 def build_residents_section(root: Path, art: Path) -> dict[str, Any]:
@@ -542,6 +610,191 @@ def build_health_section(root: Path, art: Path) -> dict[str, Any]:
     }
 
 
+def _derive_safehouse_fallback(
+    residents_df: pd.DataFrame,
+    education_df: pd.DataFrame,
+    health_df: pd.DataFrame,
+) -> pd.DataFrame:
+    if residents_df.empty:
+        return pd.DataFrame()
+
+    base = residents_df[['resident_id', 'safehouse_id', 'case_status']].copy()
+    base['safehouse_id'] = base['safehouse_id'].fillna('Unassigned').astype(str)
+    active_counts = (
+        base[base['case_status'].astype(str).str.lower().eq('active')]
+        .groupby('safehouse_id', as_index=False)['resident_id']
+        .count()
+        .rename(columns={'resident_id': 'active_residents'})
+    )
+
+    edu = pd.DataFrame(columns=['safehouse_id', 'avg_education_progress'])
+    if not education_df.empty and 'resident_id' in education_df.columns and 'progress_percent' in education_df.columns:
+        edu_join = education_df[['resident_id', 'progress_percent']].merge(
+            base[['resident_id', 'safehouse_id']], on='resident_id', how='left'
+        )
+        edu_join['progress_percent'] = pd.to_numeric(edu_join['progress_percent'], errors='coerce')
+        edu = (
+            edu_join.groupby('safehouse_id', as_index=False)['progress_percent']
+            .mean()
+            .rename(columns={'progress_percent': 'avg_education_progress'})
+        )
+
+    health = pd.DataFrame(columns=['safehouse_id', 'avg_health_score'])
+    if not health_df.empty and 'resident_id' in health_df.columns and 'general_health_score' in health_df.columns:
+        h_join = health_df[['resident_id', 'general_health_score']].merge(
+            base[['resident_id', 'safehouse_id']], on='resident_id', how='left'
+        )
+        h_join['general_health_score'] = pd.to_numeric(h_join['general_health_score'], errors='coerce')
+        health = (
+            h_join.groupby('safehouse_id', as_index=False)['general_health_score']
+            .mean()
+            .rename(columns={'general_health_score': 'avg_health_score'})
+        )
+
+    out = active_counts.merge(edu, on='safehouse_id', how='left').merge(health, on='safehouse_id', how='left')
+    out['month_start'] = datetime.now(timezone.utc).date().replace(day=1).isoformat()
+    out['process_recording_count'] = 0
+    out['home_visitation_count'] = 0
+    out['incident_count'] = 0
+    return out
+
+
+def build_safehouse_performance_section(
+    root: Path,
+    residents_df: pd.DataFrame,
+    education_df: pd.DataFrame,
+    health_df: pd.DataFrame,
+) -> dict[str, Any]:
+    df, data_source, load_warning = _load_safehouse_metrics_frame(root)
+    if df.empty:
+        fallback = _derive_safehouse_fallback(residents_df, education_df, health_df)
+        if fallback.empty:
+            return _empty_safehouse_performance_section(data_source if data_source != 'missing-file' else 'empty', load_warning)
+        df = fallback
+        data_source = 'derived-db-fallback'
+        load_warning = (load_warning + ' ' if load_warning else '') + 'Using derived fallback from resident/education/health tables.'
+
+    if 'month_start' in df.columns:
+        dts = pd.to_datetime(df['month_start'], errors='coerce')
+        if dts.notna().any():
+            latest_dt = dts.max()
+            df = df.loc[dts == latest_dt].copy()
+        else:
+            # If pipeline data has no valid month values, keep one most-recent row per safehouse where possible.
+            if 'safehouse_id' in df.columns:
+                df = df.drop_duplicates(subset=['safehouse_id'], keep='last').copy()
+
+    for col in ('active_residents', 'avg_education_progress', 'avg_health_score'):
+        if col not in df.columns:
+            df[col] = 0
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+
+    # Composite comparison score (simple weighted normalization for dashboard ranking)
+    d = df.copy()
+    for c in ('active_residents', 'avg_education_progress', 'avg_health_score'):
+        mn = float(d[c].min())
+        mx = float(d[c].max())
+        d[f'{c}_norm'] = 0.0 if abs(mx - mn) < 1e-9 else (d[c] - mn) / (mx - mn)
+    d['performance_score'] = (
+        d['active_residents_norm'] * 0.30
+        + d['avg_education_progress_norm'] * 0.35
+        + d['avg_health_score_norm'] * 0.35
+    )
+
+    d['safehouse_id'] = d['safehouse_id'].fillna('Unassigned').astype(str)
+    rows = []
+    for _, r in d.sort_values('performance_score', ascending=False).iterrows():
+        rows.append({
+            'safehouseId': str(r['safehouse_id']),
+            'activeResidents': int(round(float(r['active_residents']))),
+            'avgEducationProgress': round(float(r['avg_education_progress']), 2),
+            'avgHealthScore': round(float(r['avg_health_score']), 3),
+            'performanceScore': round(float(r['performance_score']), 4),
+        })
+
+    latest_month = None
+    if 'month_start' in d.columns:
+        ms = pd.to_datetime(d['month_start'], errors='coerce').dropna()
+        if len(ms):
+            latest_month = ms.max().strftime('%Y-%m')
+
+    return {
+        'dataSource': data_source,
+        'loadWarning': load_warning,
+        'summary': {
+            'safehouseCount': int(d['safehouse_id'].nunique()),
+            'latestMonth': latest_month,
+        },
+        'rows': rows,
+        'topSafehouses': rows[:3],
+        'bottomSafehouses': list(reversed(rows[-3:])) if len(rows) >= 3 else rows,
+    }
+
+
+def build_reintegration_section(residents_df: pd.DataFrame, data_source: str, load_warning: str) -> dict[str, Any]:
+    if residents_df.empty:
+        return _empty_reintegration_section(data_source, load_warning)
+
+    df = residents_df.copy()
+    now = datetime.now(timezone.utc)
+    window_start = pd.Timestamp(now).tz_localize(None) - pd.DateOffset(months=12)
+
+    if 'date_closed' in df.columns:
+        df['date_closed'] = pd.to_datetime(df['date_closed'], errors='coerce')
+    else:
+        df['date_closed'] = pd.NaT
+
+    closed_mask = df['case_status'].fillna('').astype(str).str.lower().eq('closed')
+    completed_mask = (
+        df.get('reintegration_status', pd.Series(index=df.index, dtype=str))
+        .fillna('')
+        .astype(str)
+        .str.lower()
+        .eq('completed')
+    )
+    in_window = df['date_closed'].notna() & (df['date_closed'] >= window_start)
+    # Denominator: eligible closed/completed cohort in the last 12 months.
+    eligible = df[in_window & (closed_mask | completed_mask)].copy()
+    # Numerator: completed reintegration among the eligible cohort.
+    success = eligible[completed_mask.loc[eligible.index]].copy()
+
+    eligible_count = int(len(eligible))
+    success_count = int(len(success))
+    success_rate = round(float(success_count / eligible_count), 4) if eligible_count else 0.0
+
+    trend_rows: list[dict[str, Any]] = []
+    if not eligible.empty:
+        tmp = eligible.copy()
+        tmp['_month'] = tmp['date_closed'].dt.to_period('M').astype(str)
+        tmp.loc[tmp['_month'].isin(['NaT', 'nan']), '_month'] = 'Unknown'
+        for month, grp in tmp.groupby('_month'):
+            gcount = int(len(grp))
+            gsuccess = int(
+                (
+                    grp.get('reintegration_status', pd.Series(index=grp.index, dtype=str))
+                    .fillna('')
+                    .astype(str)
+                    .str.lower()
+                    .eq('completed')
+                ).sum()
+            )
+            grate = round(float(gsuccess / gcount), 4) if gcount else 0.0
+            trend_rows.append({'month': month, 'successCount': gsuccess, 'eligibleCount': gcount, 'successRate': grate})
+        trend_rows.sort(key=lambda x: x['month'])
+
+    return {
+        'dataSource': data_source,
+        'loadWarning': load_warning,
+        'summary': {
+            'lookbackMonths': 12,
+            'successCount': success_count,
+            'eligibleCount': eligible_count,
+            'successRate': success_rate,
+        },
+        'monthlyTrend': trend_rows,
+    }
+
+
 def _ml_service_dir() -> Path:
     return Path(__file__).resolve().parent.parent
 
@@ -551,11 +804,25 @@ def build_tier1_analytics() -> dict[str, Any]:
     mls = _ml_service_dir()
     root = _repo_root(mls)
     art = _artifacts(mls)
+    residents = build_residents_section(root, art)
+    education = build_education_section(root, art)
+    health = build_health_section(root, art)
     return {
         'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
-        'residents': build_residents_section(root, art),
-        'education': build_education_section(root, art),
-        'healthWellbeing': build_health_section(root, art),
+        'residents': residents,
+        'education': education,
+        'healthWellbeing': health,
+        'safehousePerformance': build_safehouse_performance_section(
+            root,
+            _load_residents_frame(root)[0],
+            _load_education_frame(root)[0],
+            _load_health_frame(root)[0],
+        ),
+        'reintegration': build_reintegration_section(
+            _load_residents_frame(root)[0],
+            str(residents.get('dataSource') or 'unknown'),
+            str(residents.get('loadWarning') or ''),
+        ),
     }
 
 
@@ -568,4 +835,6 @@ def safe_build_tier1_analytics() -> dict[str, Any]:
             'residents': _empty_residents_section('error', str(ex)),
             'education': _empty_education_section('error', str(ex)),
             'healthWellbeing': _empty_health_section('error', str(ex)),
+            'safehousePerformance': _empty_safehouse_performance_section('error', str(ex)),
+            'reintegration': _empty_reintegration_section('error', str(ex)),
         }
