@@ -43,7 +43,6 @@ Verify:
 - `SCM_DO_BUILD_DURING_DEPLOYMENT=true` (keep this true in current setup)
 - `SOCIAL_MEDIA_DB_URL=<your PostgreSQL connection string>` (or `ConnectionStrings__DefaultConnection`)
 - optional:
-  - `FORCE_REBUILD_VENV=0` (set to `1` for one deploy if you need to force a clean venv rebuild)
   - `GUNICORN_WORKERS=4`
   - `GUNICORN_TIMEOUT=120`
 
