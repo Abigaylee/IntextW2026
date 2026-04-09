@@ -26,9 +26,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Local ML pipeline exports (regenerate from notebooks)
-ml-pipelines/artifacts/resident_transfer_*
-
 # Accidental nested copy (duplicate artifacts)
 ml-pipelines/ml-pipelines/
 
