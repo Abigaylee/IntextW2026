@@ -12,6 +12,30 @@ import pandas as pd
 
 from app.db_access import fetch_dataframe
 
+# PostgreSQL allows '-infinity' / 'infinity' on timestamp columns; pandas cannot parse them.
+_PG_TS_SENTINELS = frozenset({'-infinity', 'infinity', '+infinity', '-inf', '+inf', 'inf'})
+
+
+def _coerce_datetime_series(s: pd.Series) -> pd.Series:
+    """Parse timestamps for modeling; map PG infinity sentinels and other junk to NaT."""
+    if s.empty:
+        return pd.to_datetime(s, errors='coerce')
+    s = s.copy()
+    # String/object columns from psycopg may contain '-infinity'
+    if s.dtype == object or getattr(s.dtype, 'name', '') == 'string':
+        sl = s.astype(str).str.strip().str.lower()
+        bad = sl.isin(_PG_TS_SENTINELS) | sl.isin({'none', 'nat', ''})
+        s = s.mask(bad, pd.NaT)
+    out = pd.to_datetime(s, errors='coerce')
+    # Drivers may yield year 0 / BC quirks on bad values
+    try:
+        yn = out.dt.year
+        out = out.mask(yn.notna() & (yn < 1), pd.NaT)
+    except (AttributeError, TypeError, ValueError):
+        pass
+    return out
+
+
 PREDICTION_WINDOW_DAYS = 30
 SEVERITY_MAP = {'Low': 1, 'Medium': 2, 'High': 3, 'Critical': 4}
 
@@ -278,14 +302,24 @@ def build_resident_transfer_risk_summary_from_database(conn: str) -> dict[str, A
     inc = fetch_dataframe(conn, INCIDENTS_SQL)
     edu = fetch_dataframe(conn, EDUCATION_SQL)
 
-    for c in ('date_of_admission', 'date_enrolled', 'date_closed', 'created_at'):
+    # All known resident date/datetime fields (SELECT * may include PG infinity on any of these).
+    for c in (
+        'date_of_birth',
+        'date_of_admission',
+        'date_colb_registered',
+        'date_colb_obtained',
+        'date_case_study_prepared',
+        'date_enrolled',
+        'date_closed',
+        'created_at',
+    ):
         if c in res.columns:
-            res[c] = pd.to_datetime(res[c], errors='coerce')
+            res[c] = _coerce_datetime_series(res[c])
 
     if 'incident_date' in inc.columns:
-        inc['incident_date'] = pd.to_datetime(inc['incident_date'], errors='coerce')
+        inc['incident_date'] = _coerce_datetime_series(inc['incident_date'])
     if 'record_date' in edu.columns:
-        edu['record_date'] = pd.to_datetime(edu['record_date'], errors='coerce')
+        edu['record_date'] = _coerce_datetime_series(edu['record_date'])
 
     joined = _engineer_joined_active(res, inc, edu)
     if joined.empty:
