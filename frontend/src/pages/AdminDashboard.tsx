@@ -96,7 +96,9 @@ function parseIsoDate(value: string | null) {
 }
 
 export function AdminDashboard() {
-  const [metrics, setMetrics] = useState<{ activeSupporters: number; totalDonationValue: number; donationsLast90Days: number } | null>(null)
+  const [metrics, setMetrics] = useState<{ activeSupporters: number; totalDonationValue: number; donationsLast90Days: number } | null>(
+    null,
+  )
   const [residentCount, setResidentCount] = useState<number | null>(null)
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([])
   const [cutoffDate, setCutoffDate] = useState<Date>(() => {
