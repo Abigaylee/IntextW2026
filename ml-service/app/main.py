@@ -54,7 +54,6 @@ def _artifact_root() -> Path:
 
 load_dotenv(_artifact_root() / '.env', override=False)
 
-<<<<<<< HEAD
 def _normalize_connection_value(raw: str) -> str:
     value = raw.strip()
     if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
@@ -112,8 +111,6 @@ def _connect_db(conn_value: str):
         return psycopg.connect(**kwargs)
     return psycopg.connect(conn_value)
 
-=======
->>>>>>> 88b3094 (Add donations forecast pipeline + ml-service endpoint + admin analytics card updates)
 # Build marker is injected by CI as ML_API_BUILD_ID (fallback keeps local dev readable).
 _ML_API_BUILD_ID = os.getenv('ML_API_BUILD_ID', 'dev-local')
 
