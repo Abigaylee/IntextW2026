@@ -25,6 +25,18 @@ These paths are relative to the repo root unless noted. **Production URL(s)** us
 
 ---
 
+## How to find what you need for grading (quick)
+
+1. **Start at the top of the notebook.** Integrated course notebooks include an **“Appendix: Rubric mapping”** (or similar) markdown cell that maps checklist items (problem framing → deployment) to **where that narrative lives** in that file. Use it as a table of contents.
+
+2. **Follow the numbered rubric sections in order.** Look for headings such as `## 1. Problem Framing` … `## 6. Deployment Notes`, or `## 1) … ## 6)` in `education_records.ipynb`. **Safehouse** and **social media** interleave those sections with **Chapter \* ** cells—each rubric block sits immediately **above** the related chapter block.
+
+3. **Match narrative to code.** Phases (e.g. “Phase 2: Data…”) or chapter cells should appear **below** the section that explains them; grading evidence is the **markdown plus executed outputs** (metrics, plots, saved artifacts).
+
+4. **Deployment section.** For integration credit, check the notebook’s deployment markdown against **`ml-service/IntegratedPipelines.txt`** and, if needed, `ml-service/app/main.py` (route names, cache paths). Many notebooks reference **`ml-pipelines/artifacts/`** (`.joblib`, `.json`, `.csv`, metrics).
+
+---
+
 ## Admin access for grading
 
 Most rows in the table use **admin-only** routes. Sign in at [https://intext-w2026.vercel.app/login](https://intext-w2026.vercel.app/login) with:
@@ -52,16 +64,6 @@ The team used those files to **explore relationships**, joins, and data quality.
 
 ---
 
-## How to find what you need for grading (quick)
 
-1. **Start at the top of the notebook.** Integrated course notebooks include an **“Appendix: Rubric mapping”** (or similar) markdown cell that maps checklist items (problem framing → deployment) to **where that narrative lives** in that file. Use it as a table of contents.
-
-2. **Follow the numbered rubric sections in order.** Look for headings such as `## 1. Problem Framing` … `## 6. Deployment Notes`, or `## 1) … ## 6)` in `education_records.ipynb`. **Safehouse** and **social media** interleave those sections with **Chapter \* ** cells—each rubric block sits immediately **above** the related chapter block.
-
-3. **Match narrative to code.** Phases (e.g. “Phase 2: Data…”) or chapter cells should appear **below** the section that explains them; grading evidence is the **markdown plus executed outputs** (metrics, plots, saved artifacts).
-
-4. **Deployment section.** For integration credit, check the notebook’s deployment markdown against **`ml-service/IntegratedPipelines.txt`** and, if needed, `ml-service/app/main.py` (route names, cache paths). Many notebooks reference **`ml-pipelines/artifacts/`** (`.joblib`, `.json`, `.csv`, metrics).
-
-5. **Reproducibility.** Students should state running from **`ml-pipelines/`** as the working directory where the notebook says so; **Restart & Run All** should match committed outputs for full credit when execution is required.
 
 If something is ambiguous, **`ml-service/IntegratedPipelines.txt`** is the single checklist of which notebook path backs which user-facing capability.
