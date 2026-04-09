@@ -1,0 +1,22 @@
+{
+  "generatedAtUtc": "2026-04-08T00:00:00+00:00",
+  "pipelineName": "public_impact_snapshots_pipeline",
+  "dataSource": "artifact",
+  "headline": "Modeling & snapshot indicators (pipeline)",
+  "summary": "This block is served from ml-service (FastAPI), same deployment pattern as Social Media analytics. Replace with outputs from public_impact_snapshots_pipeline.ipynb or load from public_impact_snapshots in Postgres.",
+  "metricHighlights": {
+    "avgHealthScore": 3.2,
+    "avgEducationProgress": 78.0,
+    "totalResidents": 60,
+    "monthNumber": 4,
+    "year": 2026
+  },
+  "loadWarning": "",
+  "relatedPipelines": [
+    "public_impact_snapshots_pipeline",
+    "donations.ipynb",
+    "donation_allocations.ipynb",
+    "residents.ipynb",
+    "safehouse_monthly_metrics_pipeline.ipynb"
+  ]
+}

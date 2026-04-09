@@ -1,7 +1,10 @@
 using Lighthouse.Web.Data;
 using Lighthouse.Web.Models.Entities;
+using Lighthouse.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Lighthouse.Web.Controllers.Api;
 
@@ -9,12 +12,90 @@ namespace Lighthouse.Web.Controllers.Api;
 [ApiController]
 public class ImpactApiController : ControllerBase
 {
-    private readonly ApplicationDbContext _db;
+    private static readonly JsonSerializerOptions ImpactJsonOptions = new(JsonSerializerDefaults.Web);
 
-    public ImpactApiController(ApplicationDbContext db) => _db = db;
+    private readonly ApplicationDbContext _db;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<ImpactApiController> _logger;
+    private readonly ImpactPipelineClient _impactPipelineClient;
+
+    public ImpactApiController(
+        ApplicationDbContext db,
+        IConfiguration configuration,
+        ILogger<ImpactApiController> logger,
+        ImpactPipelineClient impactPipelineClient)
+    {
+        _db = db;
+        _configuration = configuration;
+        _logger = logger;
+        _impactPipelineClient = impactPipelineClient;
+    }
 
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var timeoutSec = _configuration.GetValue("Impact:CommandTimeoutSeconds", 120);
+            if (timeoutSec > 0)
+                _db.Database.SetCommandTimeout(TimeSpan.FromSeconds(timeoutSec));
+
+            return await GetCore(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GET /api/impact failed");
+            if (_configuration.GetValue("Impact:ExposeErrors", false))
+            {
+                var detail = $"{ex.GetType().Name}: {ex.Message}";
+                if (ex.InnerException != null)
+                    detail += $" | Inner: {ex.InnerException.Message}";
+                return Problem(detail: detail, statusCode: 500);
+            }
+
+            return Problem(detail: "An error occurred in the Light on a Hill Foundation API.", statusCode: 500);
+        }
+    }
+
+    private async Task<IActionResult> GetCore(CancellationToken cancellationToken)
+    {
+        var payload = await BuildImpactDashboardAsync(cancellationToken);
+        JsonNode? node = JsonSerializer.SerializeToNode(payload, ImpactJsonOptions);
+        if (node is not JsonObject jsonObject)
+            return new JsonResult(node, ImpactJsonOptions);
+
+        var mlEnabled = _configuration.GetValue("ImpactMlApi:Enabled", true);
+        var mlOverlayPresent = false;
+        if (mlEnabled)
+        {
+            try
+            {
+                var insights = await _impactPipelineClient.GetPipelineInsightsAsync(cancellationToken);
+                if (insights != null)
+                {
+                    jsonObject["pipelineInsights"] = JsonSerializer.SerializeToNode(insights, ImpactJsonOptions);
+                    mlOverlayPresent = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Impact ML pipeline overlay unavailable; returning EF aggregates only.");
+            }
+        }
+
+        jsonObject["connection"] = JsonSerializer.SerializeToNode(new
+        {
+            endpoint = "/api/impact",
+            servedAtUtc = DateTime.UtcNow,
+            mlPipelineOverlay = mlOverlayPresent,
+            mlApiEnabled = mlEnabled,
+        }, ImpactJsonOptions);
+
+        return new JsonResult(node, ImpactJsonOptions);
+    }
+
+    /// <summary>Core EF aggregates for the public Impact dashboard. Pipeline overlay is merged in <see cref="GetCore"/>.</summary>
+    private async Task<object> BuildImpactDashboardAsync(CancellationToken cancellationToken)
     {
         // Must compare enum to constant — EF cannot translate Status.ToString() to SQL on PostgreSQL enums.
         var activeSupporters = await _db.Supporters.AsNoTracking()
@@ -26,7 +107,7 @@ public class ImpactApiController : ControllerBase
         var activePrograms = await _db.Partners.AsNoTracking().CountAsync(cancellationToken);
 
         var residents = await _db.Residents.AsNoTracking().ToListAsync(cancellationToken);
-        var closedCases = residents.Count(r => r.CaseStatus == "Closed" || r.ReintegrationStatus == "Reintegrated");
+        var closedCases = residents.Count(r => r.CaseStatus == "Closed" || r.ReintegrationStatus == "Completed");
         var successRate = residents.Count == 0 ? 0 : (int)Math.Round((closedCases * 100m) / residents.Count, MidpointRounding.AwayFromZero);
 
         var donations = await _db.Donations.AsNoTracking().ToListAsync(cancellationToken);
@@ -122,7 +203,7 @@ public class ImpactApiController : ControllerBase
 
         var donorOkrs = BuildDonorOkrs(donations);
 
-        return Ok(new
+        return new
         {
             chips = new[] { "Source: INTEX case data", $"Coverage: {safehouseCount} safehouses", $"Updated: {DateTime.UtcNow:yyyy-MM-dd}" },
             kpis = new
@@ -158,7 +239,7 @@ public class ImpactApiController : ControllerBase
             socialMediaAllocationBreakdown = socialAllocationBreakdown,
             metricDefinitions = new[]
             {
-                new { key = "successRate", label = "Success Rate", definition = "Share of residents with case_status = Closed or reintegration status marked Reintegrated." },
+                new { key = "successRate", label = "Success Rate", definition = "Share of residents with case_status = Closed or reintegration status marked Completed." },
                 new { key = "retention", label = "Retention Trend", definition = "Share of supporters giving again month-over-month based on unique supporter IDs." },
                 new { key = "avgEducationLatest", label = "Avg Education Progress", definition = "Average education progress_percent on education_records in the last 30 days (UTC), across all active safehouses." },
                 new { key = "avgHealthLatest", label = "Avg Health Score", definition = "Average general_health_score on health_wellbeing_records in the last 30 days (UTC), across all active safehouses." },
@@ -170,7 +251,7 @@ public class ImpactApiController : ControllerBase
                 new { key = "socialMediaPlatformPerformance", label = "Social App Performance", definition = "Social-media donations grouped by inferred app using campaign labels and notes (Facebook, Instagram, TikTok, YouTube, X/Twitter)." },
                 new { key = "socialMediaAllocationBreakdown", label = "Where Social Donations Go", definition = "Program-area allocation totals limited to donations marked as SocialMedia channel source." }
             }
-        });
+        };
     }
 
     private sealed record OperationalOutcomeTotals(

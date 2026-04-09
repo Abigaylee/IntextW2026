@@ -9,6 +9,7 @@ This service deploys the social media pipeline outputs from `ml-pipelines/social
 - `GET /social-media/platform-ranking`
 - `GET /social-media/recommendations`
 - `GET /social-media/analytics` (combined payload used by backend)
+- `GET /impact/analytics` (pipeline overlay for public Impact page; merged into `GET /api/impact` by Lighthouse)
 
 ## Response Contract (`/social-media/analytics`)
 
@@ -63,6 +64,25 @@ source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
+
+### Windows (PowerShell)
+
+```powershell
+cd ml-service
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
+```
+
+Let `python -m venv` finish fully (do not interrupt). If `.venv\Scripts\Activate.ps1` is missing, delete `.venv` and recreate.
+
+### Windows ARM64 notes
+
+- `pandas==2.2.3` may build from source and fail; use wheels: `pip install "pandas>=2.2.3" "numpy>=2.1.2" --only-binary :all:` after other deps.
+- `psycopg[binary]` may have no wheel; install plain `psycopg` or skip DB and rely on `artifacts/social_media_analytics_cache.json` or `../datasets/social_media_posts.csv`.
+- `uvicorn[standard]` pulls `httptools`, which needs MSVC build tools; use plain `uvicorn==0.30.6` for local dev.
+- The app loads **`psycopg` only when connecting to Postgres**, so cache/CSV-only startup works without a working `libpq` driver.
 
 ## Build cache artifact
 

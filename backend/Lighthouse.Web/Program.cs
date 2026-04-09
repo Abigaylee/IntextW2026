@@ -151,6 +151,18 @@ builder.Services.AddHttpClient<SocialMediaAnalyticsClient>((sp, client) =>
     client.BaseAddress = new Uri(baseUrl);
 });
 
+builder.Services.Configure<ImpactMlApiOptions>(builder.Configuration.GetSection("ImpactMlApi"));
+builder.Services.AddHttpClient<ImpactPipelineClient>((sp, client) =>
+{
+    var impact = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ImpactMlApiOptions>>().Value;
+    var social = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<SocialMediaMlApiOptions>>().Value;
+    var baseUrl = string.IsNullOrWhiteSpace(impact.BaseUrl)
+        ? (string.IsNullOrWhiteSpace(social.BaseUrl) ? "http://localhost:8001" : social.BaseUrl.TrimEnd('/'))
+        : impact.BaseUrl.TrimEnd('/');
+
+    client.BaseAddress = new Uri(baseUrl);
+});
+
 builder.Services
     .AddControllersWithViews()
     .AddRazorOptions(options =>

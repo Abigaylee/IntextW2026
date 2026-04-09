@@ -8,8 +8,10 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import psycopg
 from dotenv import load_dotenv
+
+# Import psycopg only when connecting to Postgres (allows cache-only runs on platforms
+# without psycopg wheels, e.g. Windows ARM64 without libpq).
 from fastapi import FastAPI
 
 
@@ -96,6 +98,8 @@ def _resolve_db_connection_value() -> str:
 
 
 def _connect_db(conn_value: str):
+    import psycopg  # noqa: PLC0415
+
     if conn_value.startswith('postgres://') or conn_value.startswith('postgresql://'):
         return psycopg.connect(conn_value)
     if ';' in conn_value:
@@ -252,8 +256,81 @@ def _load_cached_or_build() -> dict[str, Any]:
     return payload
 
 
-app = FastAPI(title='Lighthouse Social Media ML API', version='1.0.0')
+def _normalize_impact_pipeline_payload(p: dict[str, Any]) -> dict[str, Any]:
+    p.setdefault('generatedAtUtc', datetime.now(timezone.utc).isoformat())
+    p.setdefault('pipelineName', 'public_impact_snapshots_pipeline')
+    p.setdefault('dataSource', 'cache')
+    p.setdefault('headline', '')
+    p.setdefault('summary', '')
+    p.setdefault('metricHighlights', {})
+    p.setdefault('loadWarning', '')
+    p.setdefault('relatedPipelines', [])
+    return p
+
+
+def _load_impact_pipeline() -> dict[str, Any]:
+    """Overlay for Impact page: aligns with ml-pipelines/public_impact_snapshots_pipeline.ipynb."""
+    root = _artifact_root()
+    cache_path = Path(os.getenv('IMPACT_PIPELINE_CACHE_PATH', root / 'artifacts' / 'impact_pipeline_cache.json'))
+    repo_root = root.parent
+    sample_path = repo_root / 'artifacts' / 'public_impact_snapshots_sample_payload.json'
+
+    if cache_path.exists():
+        data = json.loads(cache_path.read_text(encoding='utf-8'))
+        return _normalize_impact_pipeline_payload(data)
+
+    if sample_path.exists():
+        sample = json.loads(sample_path.read_text(encoding='utf-8'))
+        return _normalize_impact_pipeline_payload(
+            {
+                'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
+                'pipelineName': 'public_impact_snapshots_pipeline',
+                'dataSource': 'sample_payload',
+                'headline': 'Pipeline-aligned impact indicators',
+                'summary': (
+                    'Illustrative metrics from the public impact snapshots sample; '
+                    'place impact_pipeline_cache.json under ml-service/artifacts/ or set IMPACT_PIPELINE_CACHE_PATH.'
+                ),
+                'metricHighlights': sample,
+                'loadWarning': '',
+                'relatedPipelines': [
+                    'public_impact_snapshots_pipeline',
+                    'donations.ipynb',
+                    'residents.ipynb',
+                    'safehouse_monthly_metrics_pipeline.ipynb',
+                ],
+            }
+        )
+
+    return _normalize_impact_pipeline_payload(
+        {
+            'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
+            'pipelineName': 'public_impact_snapshots_pipeline',
+            'dataSource': 'empty',
+            'headline': '',
+            'summary': '',
+            'metricHighlights': {},
+            'loadWarning': 'No impact cache or repo artifacts sample found.',
+            'relatedPipelines': [],
+        }
+    )
+
+
+app = FastAPI(title='Lighthouse ML API (Social + Impact)', version='1.0.0')
 _cache = _load_cached_or_build()
+_impact_pipeline_cache = _load_impact_pipeline()
+
+
+@app.get('/')
+def root() -> dict[str, Any]:
+    """FastAPI has no HTML home by default; this avoids a bare 404 on GET /."""
+    return {
+        'service': 'Lighthouse ML API (Social + Impact)',
+        'docs': '/docs',
+        'health': '/health',
+        'socialMediaAnalytics': '/social-media/analytics',
+        'impactAnalytics': '/impact/analytics',
+    }
 
 
 @app.get('/health')
@@ -279,3 +356,9 @@ def social_media_recommendations() -> list[dict[str, Any]]:
 @app.get('/social-media/analytics')
 def social_media_analytics() -> dict[str, Any]:
     return _cache
+
+
+@app.get('/impact/analytics')
+def impact_analytics() -> dict[str, Any]:
+    """Public impact / snapshot pipeline overlay consumed by Lighthouse GET /api/impact."""
+    return _impact_pipeline_cache

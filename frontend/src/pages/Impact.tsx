@@ -37,6 +37,17 @@ type DonorOkrs = {
   windowLabel: string
   summary: string
 }
+type PipelineInsights = {
+  generatedAtUtc?: string
+  pipelineName?: string
+  dataSource?: string
+  headline?: string
+  summary?: string
+  metricHighlights?: Record<string, number | string | boolean | null>
+  loadWarning?: string
+  relatedPipelines?: string[]
+}
+
 type ImpactResponse = {
   chips?: string[]
   kpis?: { livesImpacted: number; safehouses: number; activePrograms: number; successRate: number }
@@ -64,6 +75,8 @@ type ImpactResponse = {
   socialMediaPlatformPerformance?: ChannelPerformancePoint[]
   socialMediaAllocationBreakdown?: AllocationPoint[]
   metricDefinitions?: Array<{ key: string; label: string; definition: string }>
+  /** Merged from ml-service GET /impact/analytics (public_impact_snapshots pipeline + related notebooks). */
+  pipelineInsights?: PipelineInsights
 }
 
 export function Impact() {
@@ -145,11 +158,77 @@ export function Impact() {
   const allocationBreakdown = data.donationAllocationBreakdown ?? []
   const socialPlatformPerformance = data.socialMediaPlatformPerformance ?? []
   const socialAllocationBreakdown = data.socialMediaAllocationBreakdown ?? []
-  const metricDefinitions = data.metricDefinitions ?? []
+  const normalizeSocialApp = (raw: string) => {
+    const name = raw.trim()
+    const lower = name.toLowerCase()
+    if (!name || /unknown|unlabeled|not set|n\/a/.test(lower)) return 'Unknown/Unlabeled'
+    if (/instagram|insta/.test(lower)) return 'Instagram'
+    if (/facebook|fb/.test(lower)) return 'Facebook'
+    if (/tiktok|tik tok/.test(lower)) return 'TikTok'
+    if (/youtube|yt/.test(lower)) return 'YouTube'
+    if (/x\/twitter|twitter|x$/.test(lower)) return 'X / Twitter'
+    return name
+  }
+
+  const buckets = new Map<string, { channel: string; donations: number; totalAmount: number }>()
+  socialPlatformPerformance.forEach((row) => {
+    const channel = normalizeSocialApp(row.channel)
+    const current = buckets.get(channel)
+    if (current) {
+      current.donations += row.donations
+      current.totalAmount += row.totalAmount
+    } else {
+      buckets.set(channel, { channel, donations: row.donations, totalAmount: row.totalAmount })
+    }
+  })
+
+  let normalizedSocialPlatformPerformance = Array.from(buckets.values())
+    .map((row) => ({ ...row, share: 0 }))
+    .sort((a, b) => b.totalAmount - a.totalAmount)
+
+  const socialTotal = normalizedSocialPlatformPerformance.reduce((sum, row) => sum + row.totalAmount, 0)
+  normalizedSocialPlatformPerformance = normalizedSocialPlatformPerformance.map((row) => ({
+    ...row,
+    share: socialTotal <= 0 ? 0 : Math.round((row.totalAmount / socialTotal) * 10000) / 100,
+  }))
+
+  const large = normalizedSocialPlatformPerformance.filter((row) => row.share >= 5)
+  const small = normalizedSocialPlatformPerformance.filter((row) => row.share < 5)
+  if (small.length > 1) {
+    const other = small.reduce(
+      (acc, row) => ({
+        channel: 'Other',
+        donations: acc.donations + row.donations,
+        totalAmount: acc.totalAmount + row.totalAmount,
+        share: acc.share + row.share,
+      }),
+      { channel: 'Other', donations: 0, totalAmount: 0, share: 0 }
+    )
+    normalizedSocialPlatformPerformance = [...large, other].sort((a, b) => b.totalAmount - a.totalAmount)
+  }
+
+  if (normalizedSocialPlatformPerformance.length > 5) {
+    const keep = normalizedSocialPlatformPerformance.slice(0, 4)
+    const tail = normalizedSocialPlatformPerformance.slice(4)
+    const other = tail.reduce(
+      (acc, row) => ({
+        channel: 'Other',
+        donations: acc.donations + row.donations,
+        totalAmount: acc.totalAmount + row.totalAmount,
+        share: acc.share + row.share,
+      }),
+      { channel: 'Other', donations: 0, totalAmount: 0, share: 0 }
+    )
+    normalizedSocialPlatformPerformance = [...keep, other]
+  }
   const donationChannelAmountRaw = donationChannels.reduce((sum, row) => sum + row.totalAmount, 0)
   const totalDonationChannelAmount = donationChannelAmountRaw || 1
-  const socialPlatformAmountRaw = socialPlatformPerformance.reduce((sum, row) => sum + row.totalAmount, 0)
+  const socialPlatformAmountRaw = normalizedSocialPlatformPerformance.reduce((sum, row) => sum + row.totalAmount, 0)
   const totalSocialPlatformAmount = socialPlatformAmountRaw || 1
+  const maxSocialPlatformAmount =
+    normalizedSocialPlatformPerformance.length > 0
+      ? Math.max(...normalizedSocialPlatformPerformance.map((s) => s.totalAmount))
+      : 1
   const maxPostDonationValue = socialPostTraction.length > 0 ? Math.max(...socialPostTraction.map((row) => row.donationValue)) : 1
   const postDonationValueRaw = socialPostTraction.reduce((sum, row) => sum + row.donationValue, 0)
   const totalPostDonationValue = postDonationValueRaw || 1
@@ -157,6 +236,7 @@ export function Impact() {
   const totalAllocationAmount = allocationAmountRaw || 1
   const socialAllocationAmountRaw = socialAllocationBreakdown.reduce((sum, row) => sum + row.amountAllocated, 0)
   const totalSocialAllocationAmount = socialAllocationAmountRaw || 1
+  const socialAppsChartHeightPx = 460
   const highlightColor = '#f3b11d'
   const mutedColor = '#c3c8d1'
 
@@ -177,6 +257,68 @@ export function Impact() {
           Data freshness: generated {new Date(freshness.generatedAtUtc).toLocaleString()} UTC
           {freshness.operationalCaseWindow ? ` | case activity window: ${freshness.operationalCaseWindow}` : ''}
         </p>
+      </section>
+
+      <section className="card border-0 shadow-sm" aria-label="Live trends from API">
+        <div className="card-body p-4">
+          <h2 className="h5 mb-2">Live trends &amp; snapshot</h2>
+          <div className="row g-4 align-items-stretch">
+            <div className="col-lg-7">
+              <h3 className="h6 mb-2">Supporter repeat rate by month</h3>
+              <div className="lh-impact-mini-chart">
+                {retention.map((d, idx) => (
+                  <div key={`${d.month}-${idx}`} className="lh-impact-mini-col text-center">
+                    <div className="small fw-semibold text-dark mb-1" title={`Retention ${d.month}: ${d.rate}%`}>
+                      {d.rate}%
+                    </div>
+                    <div className="lh-impact-mini-bar-wrap">
+                      <span
+                        className="lh-impact-mini-bar"
+                        style={{
+                          height: `${animateCharts ? Math.max(d.rate, 6) : 0}%`,
+                          transition: 'height 900ms ease-out',
+                        }}
+                      ></span>
+                    </div>
+                    <small className="text-secondary">{d.month}</small>
+                  </div>
+                ))}
+              </div>
+              {retention.length === 0 ? (
+                <p className="small text-secondary mb-0">Not enough monthly donation history yet to plot retention.</p>
+              ) : null}
+            </div>
+            <div className="col-lg-5">
+              <h3 className="h6 mb-2">Where support goes (program mix)</h3>
+              <div className="d-flex flex-column gap-2">
+                {supportMix.length === 0 ? (
+                  <p className="small text-secondary mb-0">No support mix data in this response.</p>
+                ) : (
+                  supportMix.map((m) => (
+                    <div key={m.name} className="lh-impact-trend-block">
+                      <div className="d-flex justify-content-between align-items-center">
+                        <span>{m.name}</span>
+                        <strong>{m.value}%</strong>
+                      </div>
+                      <div className="lh-impact-trend-bar">
+                        <span
+                          style={{
+                            width: `${animateCharts ? m.value : 0}%`,
+                            transition: 'width 900ms ease-out',
+                            background: m.color,
+                          }}
+                        ></span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+          <p className="small text-secondary mb-0 mt-4 pt-3 border-top">
+            Method note: metrics on this page are live aggregates from <code>/api/impact</code>; optional pipeline insights are merged from <code>GET /impact/analytics</code> when ml-service is available.
+          </p>
+        </div>
       </section>
 
       <section className="row g-2 g-md-3" aria-label="Key metrics at a glance">
@@ -209,6 +351,7 @@ export function Impact() {
         </div>
         <div className="col-6 col-md-4 col-lg">
           <div className="card border-0 shadow-sm h-100">
+            
             <div className="card-body py-3 px-3">
               <div className="small text-secondary text-uppercase">Closure / reintegration rate</div>
               <div className="h4 mb-0 text-dark">{kpis.successRate}%</div>
@@ -317,26 +460,41 @@ export function Impact() {
               <div className="row g-3">
                 <div className="col-lg-6">
                   <h3 className="h6 mb-2">Apps Driving Social Donations <span className="text-secondary">(${socialPlatformAmountRaw.toLocaleString()} total)</span></h3>
-                  <div className="d-flex flex-column gap-2">
-                    {socialPlatformPerformance.length === 0 ? (
-                      <p className="small text-secondary mb-0">No social-media-labeled donation data yet.</p>
-                    ) : socialPlatformPerformance.map((row) => (
-                      <div key={row.channel} className="bg-body-tertiary rounded p-2">
-                        <div className="d-flex justify-content-between"><strong>{row.channel}</strong><span>{row.share}%</span></div>
-                        <div className="small text-secondary">{row.donations} donations | ${row.totalAmount.toLocaleString()}</div>
-                        <div className="progress mt-2" role="img" aria-label={`${row.channel} social donations`}>
-                          <div
-                            className="progress-bar"
-                            style={{
-                              width: `${animateCharts ? Math.max((row.totalAmount / totalSocialPlatformAmount) * 100, 2) : 0}%`,
-                              transition: 'width 900ms ease-out',
-                              backgroundColor: row.totalAmount === Math.max(...socialPlatformPerformance.map((s) => s.totalAmount)) ? highlightColor : mutedColor
-                            }}
-                          />
-                        </div>
+                  {normalizedSocialPlatformPerformance.length === 0 ? (
+                    <p className="small text-secondary mb-0">No social-media-labeled donation data yet.</p>
+                  ) : (
+                    <div className="bg-body-tertiary rounded p-3">
+                      <div
+                        className="d-flex gap-2 align-items-stretch"
+                        style={{ height: `${socialAppsChartHeightPx}px` }}
+                        role="img"
+                        aria-label="Apps driving social donations vertical chart"
+                      >
+                        {normalizedSocialPlatformPerformance.map((row) => (
+                          <div key={row.channel} className="d-flex flex-column align-items-center flex-fill h-100">
+                            <div className="small fw-semibold text-dark mb-1">{row.share}%</div>
+                            <div className="d-flex align-items-end justify-content-center w-100 flex-grow-1">
+                              <div
+                                className="rounded-top"
+                                style={{
+                                  width: '62%',
+                                  height: `${animateCharts ? Math.max((row.totalAmount / totalSocialPlatformAmount) * 100, 6) : 0}%`,
+                                  transition: 'height 900ms ease-out',
+                                  backgroundColor: row.totalAmount === maxSocialPlatformAmount ? highlightColor : mutedColor,
+                                  minHeight: animateCharts ? '2rem' : 0,
+                                }}
+                                title={`${row.channel}: ${row.donations} donations, $${row.totalAmount.toLocaleString()}`}
+                              />
+                            </div>
+                            <div className="small text-center mt-2 text-dark fw-semibold text-break">{row.channel}</div>
+                            <div className="small text-secondary text-center">
+                              {row.donations} | ${row.totalAmount.toLocaleString()}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
                 <div className="col-lg-6">
                   <h3 className="h6 mb-2">Where Social Donations Go <span className="text-secondary">(${socialAllocationAmountRaw.toLocaleString()} total)</span></h3>
@@ -414,24 +572,9 @@ export function Impact() {
             <div className="card-body p-4">
               <h2 className="h4 mb-1">Retention Trend</h2>
               <p className="text-secondary small mb-3">
-                Share of supporters who gave in the previous month and gave again this month. Each column shows that month’s rate.
+                Share of supporters who gave in the previous month and gave again this month. The month-by-month chart lives in{' '}
+                <strong>Live trends &amp; snapshot</strong> at the top of this page (same <code>retention</code> array from the API).
               </p>
-              <div className="lh-impact-mini-chart">
-                {retention.map((d, idx) => (
-                  <div key={`${d.month}-${idx}`} className="lh-impact-mini-col text-center">
-                    <div className="small fw-semibold text-dark mb-1" title={`Retention ${d.month}: ${d.rate}%`}>
-                      {d.rate}%
-                    </div>
-                    <div className="lh-impact-mini-bar-wrap">
-                      <span className="lh-impact-mini-bar" style={{ height: `${Math.max(d.rate, 6)}%` }}></span>
-                    </div>
-                    <small className="text-secondary">{d.month}</small>
-                  </div>
-                ))}
-              </div>
-              {retention.length === 0 && (
-                <p className="small text-secondary mb-0">Not enough monthly donation history yet to plot retention.</p>
-              )}
               <p className="text-secondary mb-0 mt-3 small">
                 {retentionHeadline?.kind === 'undefined' && (
                   <>
@@ -572,28 +715,34 @@ export function Impact() {
         </div>
       </section>
 
-      <section className="row g-3">
-        <div className="col-12">
-          <div className="card border-0 shadow-sm h-100">
-            <div className="card-body p-4">
-              <h2 className="h4 mb-3">Metric Definitions</h2>
-              <div className="d-flex flex-column gap-3">
-                {metricDefinitions.map((metric) => (
-                  <div key={metric.key}>
-                    <div className="fw-semibold">{metric.label}</div>
-                    <div className="small text-secondary">{metric.definition}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <section className="lh-impact lh-impact-method">
         <p className="text-center text-secondary mb-0 small max-width mx-auto" style={{ maxWidth: '42rem' }}>
-          Method note: figures currently reflect case seed data and existing aggregates. As your Jupyter pipeline is productionized,
-          this page can consume forecast metrics through a dedicated API response without redesigning the layout.
+          Method note: KPIs and charts use live aggregates from the case database.
+          {data.pipelineInsights ? (
+            <>
+              {` The `}
+              <strong>Pipeline insights (ml-service)</strong>
+              {` card under the hero is from the same FastAPI deployment as Social Media (`}
+              <code>GET /impact/analytics</code>
+              {`), merged by the Lighthouse API.`}
+            </>
+          ) : (
+            <>
+              {` To show the `}
+              <strong>Pipeline insights</strong>
+              {` card (directly under the hero, above the five KPI tiles), run the FastAPI ml-service and point Lighthouse’s `}
+              <code>SocialMediaMlApi:BaseUrl</code>
+              {` (empty `}
+              <code>ImpactMlApi:BaseUrl</code>
+              {` uses the same host) at that origin. Local Development often uses `}
+              <code>http://127.0.0.1:8002</code>
+              {` if port 8001 is blocked. Then `}
+              <code>GET /impact/analytics</code>
+              {` must return JSON from the running service; otherwise `}
+              <code>/api/impact</code>
+              {` includes only database aggregates.`}
+            </>
+          )}
         </p>
       </section>
     </div>
