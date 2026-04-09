@@ -52,8 +52,6 @@ def _artifact_root() -> Path:
 
 load_dotenv(_artifact_root() / '.env', override=False)
 
-<<<<<<< HEAD
-
 def _normalize_connection_value(raw: str) -> str:
     value = raw.strip()
     if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
@@ -110,10 +108,9 @@ def _connect_db(conn_value: str):
         kwargs = _parse_dotnet_style_conn_str(conn_value)
         return psycopg.connect(**kwargs)
     return psycopg.connect(conn_value)
-=======
+
 # Build marker is injected by CI as ML_API_BUILD_ID (fallback keeps local dev readable).
 _ML_API_BUILD_ID = os.getenv('ML_API_BUILD_ID', 'dev-local')
->>>>>>> origin/main
 
 
 def _load_from_database(db_url: str) -> pd.DataFrame:
@@ -277,7 +274,6 @@ def _load_cached_or_build() -> dict[str, Any]:
     return payload
 
 
-<<<<<<< HEAD
 def _normalize_impact_pipeline_payload(p: dict[str, Any]) -> dict[str, Any]:
     p.setdefault('generatedAtUtc', datetime.now(timezone.utc).isoformat())
     p.setdefault('pipelineName', 'public_impact_snapshots_pipeline')
@@ -353,9 +349,6 @@ def root() -> dict[str, Any]:
         'socialMediaAnalytics': '/social-media/analytics',
         'impactAnalytics': '/impact/analytics',
     }
-
-
-=======
 def _repo_root() -> Path:
     """Repository root (parent of ml-service/)."""
     return _artifact_root().resolve().parent
@@ -696,7 +689,7 @@ app = FastAPI(
     version='1.3.0',
 )
 _cache = _load_cached_or_build()
->>>>>>> origin/main
+_impact_pipeline_cache = _load_impact_pipeline()
 @app.get('/health')
 def health() -> dict[str, str]:
     return {
@@ -726,12 +719,11 @@ def social_media_analytics() -> dict[str, Any]:
     return _cache
 
 
-<<<<<<< HEAD
 @app.get('/impact/analytics')
 def impact_analytics() -> dict[str, Any]:
     """Public impact / snapshot pipeline overlay consumed by Lighthouse GET /api/impact."""
     return _impact_pipeline_cache
-=======
+
 @app.get('/donations/analytics')
 def donations_analytics() -> dict[str, Any]:
     """Trends + channel/type mix from live DB (fallback CSV); optional metrics from notebook artifacts."""
@@ -748,4 +740,3 @@ def donations_explore_summary() -> dict[str, Any]:
 def reports_tier1_analytics() -> dict[str, Any]:
     """Residents, education, and health & wellbeing from live DB (when configured) or CSV + notebook artifacts."""
     return safe_build_tier1_analytics()
->>>>>>> origin/main
