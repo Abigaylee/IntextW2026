@@ -16,24 +16,88 @@ from app.db_access import fetch_dataframe
 _PG_TS_SENTINELS = frozenset({'-infinity', 'infinity', '+infinity', '-inf', '+inf', 'inf'})
 
 
+def _is_likely_date_column(name: str) -> bool:
+    n = str(name).lower()
+    if n in ('created_at', 'updated_at', 'modified_at'):
+        return True
+    return 'date' in n
+
+
+def _scrub_pg_infinity_in_object_columns(df: pd.DataFrame) -> None:
+    """Replace PG timestamp infinity strings in any object/string column (in-place)."""
+    for col in df.columns:
+        ser = df[col]
+        if ser.dtype != object and getattr(ser.dtype, 'name', '') != 'string':
+            continue
+        try:
+            sl = ser.astype(str).str.strip().str.lower()
+            bad = sl.isin(_PG_TS_SENTINELS)
+            if bad.any():
+                df[col] = ser.where(~bad, pd.NaT)
+        except Exception:
+            continue
+
+
+def _coerce_ts_value(v: Any) -> Any:
+    """Single-cell timestamp parse; never raises (returns NaT on failure)."""
+    if v is None or v is pd.NA:
+        return pd.NaT
+    if isinstance(v, float) and pd.isna(v):
+        return pd.NaT
+    if isinstance(v, str):
+        t = v.strip().lower()
+        if t in _PG_TS_SENTINELS or t in ('none', 'nat', ''):
+            return pd.NaT
+    if isinstance(v, pd.Timestamp):
+        try:
+            if pd.isna(v) or v.year < 1:
+                return pd.NaT
+        except Exception:
+            return pd.NaT
+        return v
+    try:
+        ts = pd.Timestamp(v)
+        if pd.isna(ts) or ts.year < 1:
+            return pd.NaT
+        return ts
+    except Exception:
+        return pd.NaT
+
+
 def _coerce_datetime_series(s: pd.Series) -> pd.Series:
-    """Parse timestamps for modeling; map PG infinity sentinels and other junk to NaT."""
+    """Parse timestamps for modeling; map PG infinity and out-of-range values to NaT."""
     if s.empty:
         return pd.to_datetime(s, errors='coerce')
     s = s.copy()
-    # String/object columns from psycopg may contain '-infinity'
     if s.dtype == object or getattr(s.dtype, 'name', '') == 'string':
-        sl = s.astype(str).str.strip().str.lower()
-        bad = sl.isin(_PG_TS_SENTINELS) | sl.isin({'none', 'nat', ''})
-        s = s.mask(bad, pd.NaT)
-    out = pd.to_datetime(s, errors='coerce')
-    # Drivers may yield year 0 / BC quirks on bad values
+        try:
+            sl = s.astype(str).str.strip().str.lower()
+            bad = sl.isin(_PG_TS_SENTINELS) | sl.isin({'none', 'nat', ''})
+            s = s.mask(bad, pd.NaT)
+        except Exception:
+            pass
+    try:
+        out = pd.to_datetime(s, errors='coerce', utc=False)
+    except Exception:
+        out = s.map(_coerce_ts_value)
+        out = pd.to_datetime(out, errors='coerce')
+    # Some pandas versions raise only after partial convert; map any remaining problem cells
+    if out.isna().all() and s.notna().any():
+        out = s.map(_coerce_ts_value)
+        out = pd.to_datetime(out, errors='coerce')
     try:
         yn = out.dt.year
         out = out.mask(yn.notna() & (yn < 1), pd.NaT)
     except (AttributeError, TypeError, ValueError):
         pass
     return out
+
+
+def _coerce_likely_date_columns(df: pd.DataFrame) -> None:
+    """Coerce every column whose name suggests a date (covers SELECT * on residents)."""
+    for c in list(df.columns):
+        if _is_likely_date_column(str(c)) and c in df.columns:
+            df[c] = _coerce_datetime_series(df[c])
 
 
 PREDICTION_WINDOW_DAYS = 30
@@ -58,7 +122,10 @@ INCIDENTS_SQL = """
 SELECT
     incident_id,
     resident_id,
-    incident_date::timestamp AS incident_date,
+    CASE
+        WHEN incident_date::text IN ('-infinity', 'infinity') THEN NULL::timestamp
+        ELSE incident_date::timestamp
+    END AS incident_date,
     severity::text AS severity,
     resolved,
     follow_up_required
@@ -69,7 +136,10 @@ EDUCATION_SQL = """
 SELECT
     education_record_id,
     resident_id,
-    record_date::timestamp AS record_date,
+    CASE
+        WHEN record_date::text IN ('-infinity', 'infinity') THEN NULL::timestamp
+        ELSE record_date::timestamp
+    END AS record_date,
     education_level,
     school_name,
     enrollment_status,
@@ -302,26 +372,19 @@ def build_resident_transfer_risk_summary_from_database(conn: str) -> dict[str, A
     inc = fetch_dataframe(conn, INCIDENTS_SQL)
     edu = fetch_dataframe(conn, EDUCATION_SQL)
 
-    # All known resident date/datetime fields (SELECT * may include PG infinity on any of these).
-    for c in (
-        'date_of_birth',
-        'date_of_admission',
-        'date_colb_registered',
-        'date_colb_obtained',
-        'date_case_study_prepared',
-        'date_enrolled',
-        'date_closed',
-        'created_at',
-    ):
-        if c in res.columns:
-            res[c] = _coerce_datetime_series(res[c])
-
-    if 'incident_date' in inc.columns:
-        inc['incident_date'] = _coerce_datetime_series(inc['incident_date'])
-    if 'record_date' in edu.columns:
-        edu['record_date'] = _coerce_datetime_series(edu['record_date'])
+    # PG infinity can appear in any text or timestamp column; scrub before parsing.
+    _scrub_pg_infinity_in_object_columns(res)
+    _scrub_pg_infinity_in_object_columns(inc)
+    _scrub_pg_infinity_in_object_columns(edu)
+    _coerce_likely_date_columns(res)
+    _coerce_likely_date_columns(inc)
+    _coerce_likely_date_columns(edu)
 
     joined = _engineer_joined_active(res, inc, edu)
+    if not joined.empty:
+        _scrub_pg_infinity_in_object_columns(joined)
+        _coerce_likely_date_columns(joined)
+
     if joined.empty:
         return {
             'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
