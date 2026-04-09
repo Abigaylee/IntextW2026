@@ -40,7 +40,8 @@ export function CookieBanner() {
             className="btn btn-light btn-sm"
             onClick={() => {
               document.cookie = `${CONSENT_KEY}=${CONSENT_VALUE_ACCEPTED}; path=/; max-age=31536000; SameSite=Lax`
-              localStorage.setItem('cookie_preferences_enabled', 'true')
+              const currentTheme = document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light'
+              document.cookie = `${THEME_COOKIE_KEY}=${currentTheme}; path=/; max-age=31536000; SameSite=Lax`
               setVisible(false)
             }}
           >
@@ -52,8 +53,6 @@ export function CookieBanner() {
             onClick={() => {
               document.cookie = `${CONSENT_KEY}=${CONSENT_VALUE_REJECTED}; path=/; max-age=31536000; SameSite=Lax`
               document.cookie = `${THEME_COOKIE_KEY}=; path=/; max-age=0; SameSite=Lax`
-              localStorage.removeItem('lh-theme')
-              localStorage.setItem('cookie_preferences_enabled', 'false')
               setVisible(false)
             }}
           >
