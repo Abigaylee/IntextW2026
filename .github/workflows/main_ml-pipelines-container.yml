@@ -55,6 +55,13 @@ jobs:
           registry: ${{ secrets.ACR_LOGIN_SERVER }}
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
+      - name: Ensure forecast model artifact is bundled
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ml-service/artifacts
+          cp ml-pipelines/artifacts/donation_prediction_next_month_model.joblib \
+            ml-service/artifacts/donation_prediction_next_month_model.joblib
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:

@@ -281,7 +281,9 @@ public record ProgramsTier1AnalyticsResponse(
     string GeneratedAtUtc,
     ResidentsTier1Section Residents,
     EducationTier1Section Education,
-    HealthWellbeingTier1Section HealthWellbeing
+    HealthWellbeingTier1Section HealthWellbeing,
+    SafehousePerformanceSection SafehousePerformance,
+    ReintegrationSection Reintegration
 );
 
 public record ResidentsTier1Section(
@@ -359,4 +361,47 @@ public record ProgramsTier1ModelQuality(
     double? HoldoutMae,
     double? HoldoutRmse,
     double? HoldoutR2
+);
+
+public record SafehousePerformanceSection(
+    string DataSource,
+    string LoadWarning,
+    SafehousePerformanceSummary Summary,
+    IReadOnlyList<SafehousePerformanceRow> Rows,
+    IReadOnlyList<SafehousePerformanceRow> TopSafehouses,
+    IReadOnlyList<SafehousePerformanceRow> BottomSafehouses
+);
+
+public record SafehousePerformanceSummary(
+    int SafehouseCount,
+    string? LatestMonth
+);
+
+public record SafehousePerformanceRow(
+    string SafehouseId,
+    int ActiveResidents,
+    decimal AvgEducationProgress,
+    decimal AvgHealthScore,
+    decimal PerformanceScore
+);
+
+public record ReintegrationSection(
+    string DataSource,
+    string LoadWarning,
+    ReintegrationSummary Summary,
+    IReadOnlyList<ReintegrationTrendRow> MonthlyTrend
+);
+
+public record ReintegrationSummary(
+    int LookbackMonths,
+    int SuccessCount,
+    int EligibleCount,
+    decimal SuccessRate
+);
+
+public record ReintegrationTrendRow(
+    string Month,
+    int SuccessCount,
+    int EligibleCount,
+    decimal SuccessRate
 );

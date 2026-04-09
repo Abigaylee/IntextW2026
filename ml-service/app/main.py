@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Lighthouse ML microservice: analytics JSON for the .NET backend and admin UI.
+
+Endpoints include social summaries, donations trends/forecast, impact payloads, and tier-1 program
+analytics. Prefer PostgreSQL when env connection strings are set; otherwise CSV and in-repo artifacts.
+"""
+
 import json
 import os
 import threading
@@ -384,8 +390,16 @@ def root() -> dict[str, Any]:
         'impactAnalytics': '/impact/analytics',
     }
 def _repo_root() -> Path:
-    """Repository root (parent of ml-service/)."""
-    return _artifact_root().resolve().parent
+    """
+    Repository root in local dev; falls back to ml-service root in container images.
+    Local: <repo>/ml-service -> returns <repo> (has datasets/).
+    Container: /app -> parent is / (no datasets/) -> returns /app.
+    """
+    service_root = _artifact_root().resolve()
+    candidate = service_root.parent
+    if (candidate / 'datasets').exists():
+        return candidate
+    return service_root
 
 
 def _donations_analytics_empty(load_warning: str = '', data_source: str = 'empty') -> dict[str, Any]:
@@ -723,6 +737,12 @@ _donations_forecast_cache: dict[str, Any] = {
 }
 _donations_forecast_refreshing = False
 _donations_forecast_lock = threading.Lock()
+_tier1_analytics_cache: dict[str, Any] = {
+    'payload': None,
+    'cachedAtUtc': None,
+}
+_tier1_analytics_refreshing = False
+_tier1_analytics_lock = threading.Lock()
 
 
 def _compute_donations_signature(df: pd.DataFrame) -> str:
@@ -739,13 +759,30 @@ def _compute_donations_signature(df: pd.DataFrame) -> str:
 
 
 def _forecast_cache_path() -> Path:
-    root = _repo_root()
+    root = _artifact_root().resolve()
     return Path(
         os.getenv(
             'DONATIONS_FORECAST_CACHE_PATH',
-            str(root / 'ml-service' / 'artifacts' / 'donations_next_month_forecast_cache.json'),
+            str(root / 'artifacts' / 'donations_next_month_forecast_cache.json'),
         )
     )
+
+
+def _default_forecast_model_path() -> Path:
+    """
+    Resolve forecast model path across local repo and container image layouts.
+    Preferred in container: /app/artifacts/donation_prediction_next_month_model.joblib
+    """
+    root = _repo_root()
+    service_root = _artifact_root().resolve()
+    candidates = [
+        service_root / 'artifacts' / 'donation_prediction_next_month_model.joblib',
+        root / 'ml-pipelines' / 'artifacts' / 'donation_prediction_next_month_model.joblib',
+    ]
+    for p in candidates:
+        if p.is_file():
+            return p
+    return candidates[0]
 
 
 def _read_forecast_cache_file() -> tuple[str | None, dict[str, Any] | None]:
@@ -867,11 +904,10 @@ def _build_monthly_prediction_frame(
 
 
 def _build_donations_next_month_forecast() -> dict[str, Any]:
-    root = _repo_root()
     model_path = Path(
         os.getenv(
             'DONATIONS_FORECAST_MODEL_PATH',
-            str(root / 'ml-pipelines' / 'artifacts' / 'donation_prediction_next_month_model.joblib'),
+            str(_default_forecast_model_path()),
         )
     )
     if not model_path.is_file():
@@ -1053,6 +1089,113 @@ def _safe_load_donations_next_month_forecast() -> dict[str, Any]:
         }
 
 
+def _tier1_cache_path() -> Path:
+    root = _artifact_root().resolve()
+    return Path(
+        os.getenv(
+            'TIER1_ANALYTICS_CACHE_PATH',
+            str(root / 'artifacts' / 'tier1_analytics_cache.json'),
+        )
+    )
+
+
+def _read_tier1_cache_file() -> tuple[dict[str, Any] | None, str | None]:
+    path = _tier1_cache_path()
+    if not path.is_file():
+        return None, None
+    try:
+        payload = json.loads(path.read_text(encoding='utf-8'))
+        data = payload.get('data')
+        cached_at = payload.get('cachedAtUtc')
+        if isinstance(data, dict):
+            return data, str(cached_at) if isinstance(cached_at, str) else None
+    except Exception:
+        return None, None
+    return None, None
+
+
+def _write_tier1_cache_file(payload: dict[str, Any], cached_at_utc: str) -> None:
+    path = _tier1_cache_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({'cachedAtUtc': cached_at_utc, 'data': payload}, indent=2), encoding='utf-8')
+
+
+def _build_tier1_analytics_and_cache() -> dict[str, Any]:
+    payload = safe_build_tier1_analytics()
+    cached_at_utc = datetime.now(timezone.utc).isoformat()
+    _tier1_analytics_cache['payload'] = payload
+    _tier1_analytics_cache['cachedAtUtc'] = cached_at_utc
+    _write_tier1_cache_file(payload, cached_at_utc)
+    return payload
+
+
+def _safe_load_tier1_analytics() -> dict[str, Any]:
+    try:
+        ttl_seconds = int(os.getenv('TIER1_ANALYTICS_CACHE_TTL_SECONDS', '43200'))  # default 12h
+        now_ts = datetime.now(timezone.utc).timestamp()
+
+        mem_payload = _tier1_analytics_cache.get('payload')
+        mem_cached_at = _tier1_analytics_cache.get('cachedAtUtc')
+        if not isinstance(mem_payload, dict):
+            file_payload, file_cached_at = _read_tier1_cache_file()
+            if isinstance(file_payload, dict):
+                _tier1_analytics_cache['payload'] = file_payload
+                _tier1_analytics_cache['cachedAtUtc'] = file_cached_at
+                mem_payload = file_payload
+                mem_cached_at = file_cached_at
+
+        is_fresh = False
+        if isinstance(mem_payload, dict) and isinstance(mem_cached_at, str):
+            try:
+                cached_ts = datetime.fromisoformat(mem_cached_at).timestamp()
+                is_fresh = (now_ts - cached_ts) < ttl_seconds
+            except Exception:
+                is_fresh = False
+
+        if isinstance(mem_payload, dict) and is_fresh:
+            return mem_payload
+
+        # Stale-while-refresh for tier1: return stale payload while refreshing in background.
+        if isinstance(mem_payload, dict):
+            global _tier1_analytics_refreshing
+            with _tier1_analytics_lock:
+                should_start = not _tier1_analytics_refreshing
+                if should_start:
+                    _tier1_analytics_refreshing = True
+
+            if should_start:
+                def _refresh_tier1():
+                    global _tier1_analytics_refreshing
+                    try:
+                        _build_tier1_analytics_and_cache()
+                    finally:
+                        with _tier1_analytics_lock:
+                            _tier1_analytics_refreshing = False
+
+                threading.Thread(target=_refresh_tier1, daemon=True).start()
+
+            stale = dict(mem_payload)
+            stale['isRefreshing'] = True
+            stale['loadWarning'] = (
+                (str(stale.get('loadWarning') or '') + ' ').strip()
+                + 'Showing cached snapshot while analytics refresh runs in background.'
+            ).strip()
+            return stale
+
+        # Cold start (no snapshot): build once.
+        return _build_tier1_analytics_and_cache()
+    except Exception as ex:
+        return {
+            'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
+            'residents': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'totalResidents': 0, 'activeResidents': 0, 'distinctSafehouses': 0}, 'chartRows': [], 'secondaryChartRows': []},
+            'education': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'totalRecords': 0, 'uniqueResidents': 0, 'avgAttendancePercent': None, 'avgProgressPercent': None}, 'chartRows': []},
+            'healthWellbeing': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'totalRecords': 0, 'uniqueResidents': 0, 'avgGeneralHealthScore': None, 'medianGeneralHealthScore': None, 'avgNutritionScore': None, 'avgSleepQualityScore': None, 'avgEnergyLevelScore': None, 'medicalCheckupShare': None, 'dentalCheckupShare': None, 'psychologicalCheckupShare': None}},
+            'safehousePerformance': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'safehouseCount': 0, 'latestMonth': None}, 'rows': [], 'topSafehouses': [], 'bottomSafehouses': []},
+            'reintegration': {'dataSource': 'error', 'loadWarning': str(ex), 'summary': {'lookbackMonths': 12, 'successCount': 0, 'eligibleCount': 0, 'successRate': 0.0}, 'monthlyTrend': []},
+        }
+
+
+# ASGI application for uvicorn (`uvicorn app.main:app`). Helper functions above build response payloads.
 app = FastAPI(
     title='Lighthouse ML API',
     description='Social media analytics, donations pipeline trends, and tier-1 program analytics for admin dashboard.',
@@ -1115,4 +1258,4 @@ def donations_next_month_forecast() -> dict[str, Any]:
 @app.get('/reports/tier1-analytics')
 def reports_tier1_analytics() -> dict[str, Any]:
     """Residents, education, and health & wellbeing from live DB (when configured) or CSV + notebook artifacts."""
-    return safe_build_tier1_analytics()
+    return _safe_load_tier1_analytics()

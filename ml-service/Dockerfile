@@ -12,6 +12,7 @@ RUN pip install --upgrade pip && pip install -r /app/requirements.txt
 
 COPY app /app/app
 COPY scripts /app/scripts
+COPY artifacts /app/artifacts
 
 EXPOSE 8000
 

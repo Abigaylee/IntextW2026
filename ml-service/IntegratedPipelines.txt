@@ -1,0 +1,79 @@
+Integrated Pipelines in Website
+Last updated: 2026-04-09
+
+1) social_media analytics pipeline outputs
+- Source:
+  - Notebook path: ml-pipelines/social_media_posts_pipeline.ipynb
+  - ml-service social media analytics builder
+  - artifacts/social_media_analytics_cache.json (fallback cache)
+- Website integration:
+  - Admin -> Reports & analytics (social media-related cards via backend proxy)
+  - Admin -> Social Media (analytics endpoints consumed by backend)
+
+2) donations pipeline (donations.ipynb aligned analytics + explore)
+- Source:
+  - Notebook path: ml-pipelines/donations.ipynb
+  - Donations DB/CSV aggregations in ml-service
+  - Notebook-aligned explore summary endpoint
+- Website integration:
+  - Admin -> Reports & analytics
+    - Donation trends
+    - Giving channels
+    - Gift types
+    - Donor outreach list/engagement support cards
+
+3) donation next-month forecast pipeline
+- Source:
+  - Notebook path: ml-pipelines/donation_prediction.ipynb
+  - ml-pipelines/artifacts/donation_prediction_next_month_model.joblib
+  - Endpoint: /donations/next-month-forecast
+- Website integration:
+  - Admin -> Reports & analytics
+    - Next month estimated donations card
+
+4) tier-1 resident/education/health pipeline artifacts
+- Source:
+  - Notebook paths:
+    - ml-pipelines/residents.ipynb
+    - ml-pipelines/education_records.ipynb
+    - ml-pipelines/health_wellbeing_records.ipynb
+  - residents, education_records, health_wellbeing records + top feature artifacts
+  - Endpoint: /reports/tier1-analytics
+- Website integration:
+  - Admin -> Reports & analytics
+    - Caring: residents in care
+    - Teaching: education
+    - Healing: health & wellbeing
+
+5) safehouse monthly metrics pipeline
+- Source:
+  - Notebook path: ml-pipelines/safehouse_monthly_metrics_pipeline.ipynb
+  - safehouse_monthly_metrics (pipeline-first table/CSV)
+  - DB-derived fallback from residents + education + health when pipeline source missing
+  - Endpoint block: safehousePerformance under /reports/tier1-analytics
+- Website integration:
+  - Admin -> Reports & analytics
+    - Safehouse performance comparison card
+
+6) reintegration snapshot logic (tier-1 analytics extension)
+- Source:
+  - Notebook path: derived from tier-1 residents pipeline inputs (no standalone reintegration notebook yet)
+  - residents case_status, reintegration_status, date_closed
+  - Endpoint block: reintegration under /reports/tier1-analytics
+- Website integration:
+  - Admin -> Reports & analytics
+    - Reintegration success card
+
+7) public impact snapshots pipeline
+- Source:
+  - Notebook path: ml-pipelines/public_impact_snapshots_pipeline.ipynb
+  - public_impact_snapshots_pipeline.ipynb outputs
+  - ml-service/artifacts/impact_pipeline_cache.json (or sample payload fallback)
+  - Endpoint: /impact/analytics
+- Website integration:
+  - Public/impact and backend impact API integrations
+
+Maintenance rule:
+- Update this file whenever a new pipeline-backed endpoint/card is added to the website.
+
+Total Pipelines Integrated (distinct .ipynb files connected via API): 8

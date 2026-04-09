@@ -1,7 +1,7 @@
 {
-  "_signature": "n=461|maxId=470|maxDate=2026-04-09|sum=543185.19",
+  "_signature": "n=426|maxId=469|maxDate=2026-04-09|sum=491206.63",
   "data": {
-    "generatedAtUtc": "2026-04-09T16:47:00.655581+00:00",
+    "generatedAtUtc": "2026-04-09T17:35:10.658429+00:00",
     "dataSource": "database",
     "loadWarning": "",
     "endpointVersion": "2.0.0",
@@ -16,17 +16,17 @@
     },
     "latestObservedMonth": "2026-04",
     "predictedMonth": "2026-05",
-    "predictedTotalEstimatedValue": 8274.21,
+    "predictedTotalEstimatedValue": 7734.06,
     "predictionRange": {
-      "lower": 6619.37,
-      "upper": 9929.06
+      "lower": 6187.24,
+      "upper": 9280.87
     },
     "featureSnapshot": {
-      "lagTotal1": 2353.58,
-      "rolling6TotalMean": 7955.88,
+      "lagTotal1": 2081.7,
+      "rolling6TotalMean": 7140.79,
       "monthNum": 4,
-      "avgGiftValue": 5749.09,
-      "uniqueSupporters": 13
+      "avgGiftValue": 5876.98,
+      "uniqueSupporters": 12
     }
   }
 }
