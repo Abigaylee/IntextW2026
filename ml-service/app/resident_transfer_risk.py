@@ -116,14 +116,83 @@ LEAKAGE_COLS = [
     'reintegration_status',
 ]
 
-RESIDENTS_SQL = 'SELECT * FROM residents'
+# PG date/timestamptz can hold -infinity/infinity; psycopg cannot load those into Python (DataError).
+_PG_INF_TEXT = "('-infinity', 'infinity', '+infinity')"
 
-INCIDENTS_SQL = """
+
+def _safe_date_col(name: str) -> str:
+    return (
+        f'CASE WHEN ({name})::text IN {_PG_INF_TEXT} THEN NULL::date ELSE {name} END AS {name}'
+    )
+
+
+def _safe_timestamptz_col(name: str) -> str:
+    return (
+        f'CASE WHEN ({name})::text IN {_PG_INF_TEXT} THEN NULL::timestamptz ELSE {name} END AS {name}'
+    )
+
+
+# Explicit columns: SELECT * would still fetch created_at / dates as PG infinities and fail in psycopg.
+RESIDENTS_SQL = f"""
+SELECT
+    resident_id,
+    case_control_no,
+    internal_code,
+    safehouse_id,
+    case_status,
+    sex,
+    {_safe_date_col('date_of_birth')},
+    birth_status,
+    place_of_birth,
+    religion,
+    case_category,
+    sub_cat_orphaned,
+    sub_cat_trafficked,
+    sub_cat_child_labor,
+    sub_cat_physical_abuse,
+    sub_cat_sexual_abuse,
+    sub_cat_osaec,
+    sub_cat_cicl,
+    sub_cat_at_risk,
+    sub_cat_street_child,
+    sub_cat_child_with_hiv,
+    is_pwd,
+    pwd_type,
+    has_special_needs,
+    special_needs_diagnosis,
+    family_is_4ps,
+    family_solo_parent,
+    family_indigenous,
+    family_parent_pwd,
+    family_informal_settler,
+    {_safe_date_col('date_of_admission')},
+    age_upon_admission,
+    present_age,
+    length_of_stay,
+    referral_source,
+    referring_agency_person,
+    {_safe_date_col('date_colb_registered')},
+    {_safe_date_col('date_colb_obtained')},
+    assigned_social_worker,
+    initial_case_assessment,
+    {_safe_date_col('date_case_study_prepared')},
+    reintegration_type,
+    reintegration_status,
+    initial_risk_level,
+    current_risk_level,
+    {_safe_date_col('date_enrolled')},
+    {_safe_date_col('date_closed')},
+    {_safe_timestamptz_col('created_at')},
+    notes_restricted
+FROM residents
+"""
+
+INCIDENTS_SQL = f"""
 SELECT
     incident_id,
     resident_id,
     CASE
-        WHEN incident_date::text IN ('-infinity', 'infinity') THEN NULL::timestamp
+        WHEN incident_date::text IN {_PG_INF_TEXT} THEN NULL::timestamp
         ELSE incident_date::timestamp
     END AS incident_date,
     severity::text AS severity,
@@ -132,12 +201,12 @@ SELECT
 FROM incident_reports
 """
 
-EDUCATION_SQL = """
+EDUCATION_SQL = f"""
 SELECT
     education_record_id,
     resident_id,
     CASE
-        WHEN record_date::text IN ('-infinity', 'infinity') THEN NULL::timestamp
+        WHEN record_date::text IN {_PG_INF_TEXT} THEN NULL::timestamp
         ELSE record_date::timestamp
     END AS record_date,
     education_level,
@@ -218,6 +287,19 @@ def _boolish_to_num(s: pd.Series) -> pd.Series:
     return s.map(one)
 
 
+def _series_to_float64(s: pd.Series) -> pd.Series:
+    """psycopg returns PostgreSQL numeric as Decimal; pandas/sklearn need float64."""
+    return pd.to_numeric(s, errors='coerce').astype('float64')
+
+
+def _coerce_numeric_agg_frame(df: pd.DataFrame, key_col: str = 'resident_id') -> None:
+    """In-place: every non-key column to float64 (counts/ratios/means from groupby)."""
+    for c in df.columns:
+        if c == key_col:
+            continue
+        df[c] = _series_to_float64(df[c])
+
+
 def _engineer_joined_active(res: pd.DataFrame, inc: pd.DataFrame, edu: pd.DataFrame) -> pd.DataFrame:
     """Active residents only; same 30-day incident/education windows as the training notebook."""
     if res.empty:
@@ -233,6 +315,11 @@ def _engineer_joined_active(res: pd.DataFrame, inc: pd.DataFrame, edu: pd.DataFr
         return pd.DataFrame()
 
     base['prediction_cutoff_date'] = base['date_enrolled'] + pd.Timedelta(days=PREDICTION_WINDOW_DAYS)
+
+    edu = edu.copy()
+    for _col in ('attendance_rate', 'progress_percent'):
+        if _col in edu.columns:
+            edu[_col] = _series_to_float64(edu[_col])
 
     inc2 = inc.copy()
     if not inc2.empty and 'severity' in inc2.columns:
@@ -264,10 +351,14 @@ def _engineer_joined_active(res: pd.DataFrame, inc: pd.DataFrame, edu: pd.DataFr
         incident_count_30d=('incident_id', 'count'),
         incident_severity_mean_30d=('severity_num', 'mean'),
         incident_severity_max_30d=('severity_num', 'max'),
-        unresolved_ratio_30d=('resolved_num', lambda s: 1 - s.fillna(0).mean()),
+        unresolved_ratio_30d=(
+            'resolved_num',
+            lambda s: 1.0 - float(pd.to_numeric(s, errors='coerce').fillna(0).mean()),
+        ),
         unresolved_high_count_30d=('unresolved_high', 'sum'),
         follow_up_ratio_30d=('follow_up_num', 'mean'),
     )
+    _coerce_numeric_agg_frame(inc_agg)
 
     edu30 = base[['resident_id', 'date_enrolled', 'prediction_cutoff_date']].merge(edu, on='resident_id', how='left')
     edu30 = edu30[
@@ -284,6 +375,7 @@ def _engineer_joined_active(res: pd.DataFrame, inc: pd.DataFrame, edu: pd.DataFr
         progress_mean_30d=('progress_percent', 'mean'),
         progress_last_30d=('progress_percent', 'last'),
     )
+    _coerce_numeric_agg_frame(edu_agg)
     edu_agg['progress_delta_30d'] = edu_agg['progress_last_30d'] - edu_agg['progress_mean_30d']
     edu_agg['attendance_delta_30d'] = edu_agg['attendance_last_30d'] - edu_agg['attendance_mean_30d']
 
@@ -312,6 +404,34 @@ def _model_metrics_from_csv(metrics_path: Path) -> dict[str, Any] | None:
         return None
 
 
+def _risk_tier_from_probabilities(proba: pd.Series) -> pd.Series:
+    """Map probabilities to tier labels as plain object dtype (never Categorical — fillna('Unknown') breaks on Categorical)."""
+    p = pd.to_numeric(proba, errors='coerce')
+    binned = pd.cut(p, bins=[-0.001, 0.5, 0.75, 1.0], labels=['Monitor', 'Medium', 'High'])
+    out: list[str] = []
+    for v in binned.tolist():
+        out.append('Unknown' if pd.isna(v) else str(v))
+    return pd.Series(out, index=proba.index, dtype=object)
+
+
+def _normalize_tier_series_for_counts(s: pd.Series) -> pd.Series:
+    """Safe tier labels for value_counts (Categorical cannot gain 'Unknown' without add_categories)."""
+
+    def _one_tier_label(v: Any) -> str:
+        if v is None:
+            return 'Unknown'
+        if isinstance(v, float) and pd.isna(v):
+            return 'Unknown'
+        t = str(v).strip()
+        if not t or t.lower() in ('nan', '<na>', 'none', 'nat'):
+            return 'Unknown'
+        return t
+
+    if pd.api.types.is_categorical_dtype(s):
+        s = s.astype(object)
+    return s.map(_one_tier_label)
+
+
 def _pack_scored_response(
     scored: pd.DataFrame,
     tier_col: str,
@@ -320,15 +440,16 @@ def _pack_scored_response(
     load_warning: str = '',
 ) -> dict[str, Any]:
     tier_counts: list[dict[str, Any]] = []
-    for label, count in scored[tier_col].fillna('Unknown').value_counts().items():
+    tier_vc = _normalize_tier_series_for_counts(scored[tier_col])
+    for label, count in tier_vc.value_counts().items():
         tier_counts.append({'tier': str(label), 'count': int(count)})
 
     top_residents: list[dict[str, Any]] = []
     has_ids = all(c in scored.columns for c in ('resident_id', 'case_control_no'))
     if has_ids:
-        tier_rank = {'High': 3, 'Medium': 2, 'Monitor': 1}
+        tier_rank = {'high': 3, 'medium': 2, 'monitor': 1}
         ranked = scored.copy()
-        ranked['__tier_rank'] = ranked[tier_col].astype(str).map(tier_rank).fillna(0)
+        ranked['__tier_rank'] = ranked[tier_col].astype(str).str.strip().str.lower().map(tier_rank).fillna(0)
         ranked = ranked.sort_values(['__tier_rank', 'pred_transfer_prob'], ascending=[False, False]).head(5)
         for _, row in ranked.iterrows():
             top_residents.append(
@@ -344,7 +465,7 @@ def _pack_scored_response(
             )
 
     n = int(len(scored))
-    high_count = int((scored[tier_col].astype(str) == 'High').sum())
+    high_count = int(scored[tier_col].astype(str).str.strip().str.lower().eq('high').sum())
     high_share = round(high_count / n, 4) if n else 0.0
     avg_prob = round(float(scored['pred_transfer_prob'].mean()), 4) if n else 0.0
 
@@ -385,6 +506,9 @@ def build_resident_transfer_risk_summary_from_database(conn: str) -> dict[str, A
         _scrub_pg_infinity_in_object_columns(joined)
         _coerce_likely_date_columns(joined)
 
+    if joined.columns.duplicated().any():
+        joined = joined.loc[:, ~joined.columns.duplicated()].copy()
+
     if joined.empty:
         return {
             'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
@@ -422,14 +546,15 @@ def build_resident_transfer_risk_summary_from_database(conn: str) -> dict[str, A
     if hasattr(pipeline, 'feature_names_in_') and getattr(pipeline, 'feature_names_in_', None) is not None:
         X = X.reindex(columns=list(pipeline.feature_names_in_))
 
+    # Categorical dtypes confuse some sklearn transformers; pipeline expects str/number.
+    for c in list(X.columns):
+        if pd.api.types.is_categorical_dtype(X[c]):
+            X[c] = X[c].astype(str).replace({'<NA>': '', 'nan': ''})
+
     proba = pipeline.predict_proba(X)[:, 1]
     scored = joined[meta_cols].reset_index(drop=True).copy()
-    scored['pred_transfer_prob'] = proba
-    scored['risk_tier'] = pd.cut(
-        scored['pred_transfer_prob'],
-        bins=[-0.001, 0.5, 0.75, 1.0],
-        labels=['Monitor', 'Medium', 'High'],
-    )
+    scored['pred_transfer_prob'] = pd.to_numeric(proba, errors='coerce').astype('float64')
+    scored['risk_tier'] = _risk_tier_from_probabilities(scored['pred_transfer_prob'])
     tier_col = 'risk_tier'
 
     return _pack_scored_response(

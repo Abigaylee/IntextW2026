@@ -49,6 +49,7 @@ You do **not** manually zip-deploy the `ml-service` folder in normal operation. 
 - **Resident transfer risk** (`GET /residents/transfer-risk-summary`, admin dashboard):
   - In **production**, use the same PostgreSQL settings as social/tier-1 (`SOCIAL_MEDIA_DB_URL` or `ConnectionStrings__DefaultConnection`). The service reads **`residents`**, **`incident_reports`**, and **`education_records`**, engineers the same early-window features as `resident_transfer_risk_pipeline.ipynb`, runs the bundled **`resident_transfer_risk_model.joblib`**, and returns **`dataSource: "database"`**.
   - GitHub Actions copies `resident_transfer_risk_model.joblib` and `resident_transfer_risk_metrics.csv` from `ml-pipelines/artifacts/` into `ml-service/artifacts/` before the Docker build (same pattern as the donations forecast model).
+  - **scikit-learn version:** `requirements.txt` pins `scikit-learn` to match the version used when `joblib.dump` ran in `resident_transfer_risk_pipeline.ipynb` (currently **1.5.2**). Unpickling with a newer sklearn can fail (e.g. missing `_RemainderColsList` on `ColumnTransformer`). After upgrading sklearn in the service, re-run the notebook and commit a fresh `.joblib`.
   - If **no** DB URL is set (typical local dev), the endpoint falls back to the precomputed scored CSV under `ml-pipelines/artifacts/` (`dataSource: "artifact_csv"`).
 
 Local-only / artifact refresh (optional):

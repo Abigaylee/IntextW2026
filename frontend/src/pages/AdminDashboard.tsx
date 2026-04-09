@@ -133,6 +133,7 @@ function transferRiskTierLabel(tier: string) {
   if (t === 'high') return 'Needs immediate review'
   if (t === 'medium') return 'Needs follow-up'
   if (t === 'monitor') return 'Stable / monitor'
+  if (t === 'unknown' || t === 'nan' || t === '') return 'Unclassified'
   return tier
 }
 
