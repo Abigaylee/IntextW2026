@@ -1,270 +1,185 @@
 # Azure Deployment Guide (ML Service + .NET Bridge)
 
-## 1) Deploy Python ML service
+## Current production strategy (container)
+
+The **ml-pipelines** Web App runs a **Docker image** built from `ml-service/Dockerfile`. GitHub Actions builds the image, pushes it to **ACR**, updates the Web App’s container image tag, sets app settings, clears any legacy **Startup Command**, and runs a smoke test.
+
+**Teammate workflow (ML API changes):**
+
+1. Edit code under **`ml-service/`** (for example `ml-service/app/main.py`).
+2. Commit and push to **`main`**.
+3. GitHub runs **Build and deploy ml-service container** when **any** of these change:
+   - `ml-service/**`
+   - `.github/workflows/main_ml-pipelines-container.yml`
+4. Wait for the workflow to finish (especially **Smoke test deployed container**).
+5. Confirm **`/health.buildId`** matches that commit’s SHA (or use OpenAPI `info.version` / a feature flag like `endpointVersion` on `/donations/explore-summary`).
+
+You do **not** manually zip-deploy the `ml-service` folder in normal operation. The image is the source of truth for Python code in production.
+
+---
+
+## One-time / ongoing Azure & GitHub setup
+
+### GitHub
+
+- **ACR:** `ACR_LOGIN_SERVER`, `ACR_USERNAME`, `ACR_PASSWORD`
+- **Web App target:** repository **variables or secrets** `AZURE_WEBAPP_NAME`, `AZURE_RESOURCE_GROUP` (the App Service that **runs** the container, not the registry resource group)
+- **Azure login** for `az` in Actions (existing OIDC / client secrets as configured in the workflow)
+
+### App Service (Linux, custom container)
+
+| Setting | Purpose |
+|--------|---------|
+| **Startup Command** | **Empty** — the image’s `CMD` runs **gunicorn** (`Dockerfile`). If this is set to `bash /home/site/wwwroot/startup.sh` from an old zip deploy, the container will **503**. |
+| **WEBSITES_PORT** | **`8000`** (set by the workflow each deploy) |
+| **SCM_DO_BUILD_DURING_DEPLOYMENT** | **`false`** for container mode (workflow sets this; avoids Oryx fighting the container) |
+| **ML_API_BUILD_ID** | Set by CI to **`GITHUB_SHA`** for `/health` verification |
+
+**Deployment Center:** If **GitHub** is connected there for the same app, **disconnect** it so it does not compete with your custom Actions workflow.
+
+### Runtime data & optional paths
+
+- **`SOCIAL_MEDIA_DB_URL`** or **`ConnectionStrings__DefaultConnection`** — PostgreSQL for social posts, **donations**, and tier-1 program tables when available.
+- Optional fallbacks if the full repo layout is not in the image (usually not needed when DB is set):
+  - `SOCIAL_MEDIA_DATASET_PATH`, `DONATIONS_DATASET_PATH`, `DONATIONS_METRICS_PATH`, tier-1 CSV paths (see older comments in `app/main.py` / env examples).
+
+Local-only / artifact refresh (optional):
+
+- `SOCIAL_MEDIA_CACHE_PATH` — precomputed JSON if you run `scripts/build_social_media_cache.py` locally and ship the file (most production setups use **database** instead).
+
+---
+
+## Local development (not production)
 
 From repo root:
 
 ```bash
 cd ml-service
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+python -m py_compile app/main.py
+```
+
+Optional: build a social cache file for offline work:
+
+```bash
 python3 scripts/build_social_media_cache.py
 ```
 
-Deploy `ml-service` as a separate Azure App Service (Python).
+Run the API locally with uvicorn/gunicorn as you prefer; production uses **`Dockerfile`** `CMD` with gunicorn on **port 8000**.
 
-### Required App Settings
+**`startup.sh`** is for **legacy zip / Oryx** App Service layout only — do **not** set it as the container **Startup Command**.
 
-- `SOCIAL_MEDIA_CACHE_PATH=artifacts/social_media_analytics_cache.json`
-- `SOCIAL_MEDIA_DATASET_PATH=../datasets/social_media_posts.csv` (optional fallback)
-- `DONATIONS_DATASET_PATH=../datasets/donations.csv` (optional; defaults under repo root `datasets/donations.csv` when deployed from this layout)
-- `DONATIONS_METRICS_PATH=../ml-pipelines/artifacts/donations_model_metrics.csv` (optional; enriches `/donations/analytics` with pipeline holdout metrics when present)
-- Tier-1 program analytics (`GET /reports/tier1-analytics`) prefer the **same PostgreSQL** as social media: set `SOCIAL_MEDIA_DB_URL` or `ConnectionStrings__DefaultConnection` on the ML app so it can read `residents`, `education_records`, and `health_wellbeing_records`. On query failure, it falls back to CSVs. Notebook drivers still load from `ml-pipelines/artifacts/*` relative to repo root. If you deploy only the `ml-service` folder without the full repo, set optional CSV paths, for example:
-  - `RESIDENTS_DATASET_PATH=../datasets/residents.csv`
-  - `EDUCATION_DATASET_PATH=../datasets/education_records.csv`
-  - `HEALTH_WELLBEING_DATASET_PATH=../datasets/health_wellbeing_records.csv`
+---
 
-### Startup command (recommended)
+## Configure .NET backend (bridge)
 
-```bash
-bash /home/site/wwwroot/startup.sh
-```
-
-Verify:
-
-- `GET https://<ml-service>.azurewebsites.net/health`
-- `GET https://<ml-service>.azurewebsites.net/social-media/analytics`
-- `GET https://<ml-service>.azurewebsites.net/reports/tier1-analytics`
-- `GET https://<ml-service>.azurewebsites.net/donations/analytics`
-
-### App settings for stable deploy behavior
-
-- `SCM_DO_BUILD_DURING_DEPLOYMENT=true` (keep this true in current setup)
-- `SOCIAL_MEDIA_DB_URL=<your PostgreSQL connection string>` (or `ConnectionStrings__DefaultConnection`)
-- optional:
-  - `GUNICORN_WORKERS=4`
-  - `GUNICORN_TIMEOUT=120`
-
-## 2) Configure .NET backend bridge
-
-Set backend App Service settings:
+On the **backend** App Service (or `appsettings` for the environment):
 
 - `SocialMediaMlApi__BaseUrl=https://<ml-service>.azurewebsites.net`
-- `SocialMediaMlApi__AnalyticsPath=/social-media/analytics`
-- `SocialMediaMlApi__DonationsAnalyticsPath=/donations/analytics` (optional; this is the default)
-- `SocialMediaMlApi__ProgramsTier1AnalyticsPath=/reports/tier1-analytics` (optional; this is the default)
-- `SocialMediaMlApi__ApiKey=` (optional if you add key auth)
+- `SocialMediaMlApi__AnalyticsPath=/social-media/analytics` (optional; default)
+- `SocialMediaMlApi__DonationsAnalyticsPath=/donations/analytics` (optional; default)
+- `SocialMediaMlApi__DonationsExploreSummaryPath=/donations/explore-summary` (optional; default)
+- `SocialMediaMlApi__ProgramsTier1AnalyticsPath=/reports/tier1-analytics` (optional; default)
+- `SocialMediaMlApi__ApiKey=` (optional)
 
-Redeploy backend.
+Redeploy the **backend** when you add new proxy routes or change client code.
 
-Verify backend endpoint:
+Verify (admin session where required):
 
-- `GET https://<backend>.azurewebsites.net/api/admin/analytics/social-media`
-- `GET https://<backend>.azurewebsites.net/api/admin/analytics/donations-ml` (admin session required)
-- `GET https://<backend>.azurewebsites.net/api/admin/analytics/programs-tier1` (admin session required)
+- `GET .../api/admin/analytics/social-media`
+- `GET .../api/admin/analytics/donations-ml`
+- `GET .../api/admin/analytics/donations-explore`
+- `GET .../api/admin/analytics/programs-tier1`
 
-## 3) Frontend validation
+---
 
-Redeploy frontend and login as admin.
+## Frontend
 
-Open:
+Redeploy the frontend when UI changes. As admin, open:
 
 - `/Admin/SocialMedia`
-- `/Admin/Analytics` (Reports & analytics — tier-1 program cards when ml-service paths resolve)
+- `/Admin/Analytics` (Reports & analytics — donations ML, tier-1, **Donations notebook EDA** card when the new endpoints are live)
 
-Expected:
+---
 
-- KPI cards populated
-- platform donation chart visible
-- recommendations list visible
-- best posting windows table visible
-
-## 4) Refreshing precomputed analytics
-
-Any time you refresh the notebook outputs:
-
-```bash
-cd ml-service
-source .venv/bin/activate
-python3 scripts/build_social_media_cache.py
-```
-
-Then redeploy/restart ML service so new cache is served.
-
-## 5) Safe production checklist (every release)
-
-1. Merge to `main` (workflow deploys `./ml-service`).
-2. Wait for GitHub Action success.
-3. In App Service, restart once (optional but recommended after endpoint additions).
-4. Run smoke checks:
-
-```bash
-curl -sS "https://<ml-service>.azurewebsites.net/health"
-curl -sS "https://<ml-service>.azurewebsites.net/openapi.json" | jq '.info, .paths | keys'
-curl -sS "https://<ml-service>.azurewebsites.net/reports/tier1-analytics" | jq '.generatedAtUtc, .residents.dataSource'
-curl -sS "https://<ml-service>.azurewebsites.net/donations/analytics" | jq '.dataSource, .summary, (.channelMix | length), (.giftTypeMix | length)'
-```
-
-Expected:
-- `/health` returns `status: ok` and a `buildId`.
-- OpenAPI includes both `/reports/tier1-analytics` and `/donations/analytics`.
-- Tier1 endpoint responds with JSON payload.
-- Donations endpoint returns `dataSource: "database"` in production (or clear warning if fallback used).
-
-## 6) Kudu diagnostics (if anything drifts)
-
-Open Kudu SSH and run:
-
-```bash
-cd /home/site/wwwroot
-wc -l app/main.py
-grep -n "title='Lighthouse ML API'" app/main.py
-grep -n "/reports/tier1-analytics\\|/donations/analytics" app/main.py
-bash startup.sh
-```
-
-If `bash startup.sh` fails, the error text is the source of truth (missing deps, bad env, etc.).
-
-## 7) Team release playbook (required)
-
-Use this checklist every time anyone adds or changes ML API routes.
-
-### A. Before merge
-
-1. Ensure route is added in `ml-service/app/main.py`.
-2. Ensure workflow validation still passes:
-   - `/.github/workflows/main_ml-pipelines-container.yml` (Python compile + deploy smoke test)
-   - smoke test checks `/openapi.json` and `/health`
-3. Run local sanity checks:
-
-```bash
-cd ml-service
-python3 -m py_compile app/main.py
-bash -n startup.sh
-```
-
-### B. Deploy
-
-1. Merge to `main`.
-2. The workflow **Build and deploy ml-service container** runs on push (paths under `ml-service/`).
-3. Wait for **all jobs to pass**, especially **Smoke test deployed container**.
-
-### C. Post-deploy verification (must pass)
-
-Run:
+## Production smoke checks (after each ML deploy)
 
 ```bash
 BASE_URL="https://<ml-service>.azurewebsites.net"
-curl -fSs "$BASE_URL/health" | jq .
-curl -fSs "$BASE_URL/openapi.json" | jq '.info, (.paths | keys)'
+curl -fsS "$BASE_URL/health" | jq .
+curl -fsS "$BASE_URL/openapi.json" | jq '.info, (.paths | keys)'
+curl -fsS "$BASE_URL/donations/analytics" | jq '.dataSource, .summary'
+curl -fsS "$BASE_URL/donations/explore-summary" | jq '.endpointVersion, .generatedAtUtc, .dataSource'
+curl -fsS "$BASE_URL/reports/tier1-analytics" | jq '.generatedAtUtc, .residents.dataSource'
 ```
 
 Expected:
-- `/health` returns `status: "ok"` and `buildId`.
-- `buildId` matches the workflow commit SHA (`GITHUB_SHA`) from the run you just deployed.
-- OpenAPI path list includes all expected routes (including new ones).
 
-### D. Production data verification (admin analytics)
+- `/health`: `status: ok`, `buildId` = deployed commit SHA.
+- OpenAPI lists routes you care about (`/donations/analytics`, `/donations/explore-summary`, `/reports/tier1-analytics`, etc.).
+- Donations endpoints: usually `dataSource: "database"` in production when DB is configured.
 
-```bash
-BASE_URL="https://<ml-service>.azurewebsites.net"
-curl -fSs "$BASE_URL/reports/tier1-analytics" | jq '.generatedAtUtc, .residents.dataSource'
-curl -fSs "$BASE_URL/donations/analytics" | jq '.dataSource, .loadWarning, .summary, (.channelMix|length), (.giftTypeMix|length)'
-```
+---
 
-Expected:
-- Tier1 returns valid payload and usually `dataSource: "database"` in production.
-- Donations endpoint returns non-empty summary/mix when DB access is healthy.
-- If donations returns `missing-file` or CSV warnings, treat as a deployment/config bug, not expected production behavior.
+## Team release playbook (routes & quality)
 
-### E. If deploy is green but app is stale or failing
+### Before merge
 
-**Container deploy (current):** the running code is the **image tag** on the Web App, not `wwwroot`. Use **Log stream**, **Container settings** (image digest/tag), and `/health.buildId` vs the GitHub Actions commit SHA.
+1. Add or change routes in `ml-service/app/main.py` (and dependencies if needed).
+2. CI validates: `py_compile`, route greps, `startup.sh` safety checks (see `main_ml-pipelines-container.yml`).
+3. Local: `python -m py_compile app/main.py` (and `bash -n startup.sh` if you touch it).
 
-**Legacy zip / Oryx troubleshooting** (only if you ever revert to zip deploy):
+### After merge
 
-1. Check runtime files on Kudu under `/home/site/wwwroot`.
-2. Startup command: `bash /home/site/wwwroot/startup.sh`
-3. `SCM_DO_BUILD_DURING_DEPLOYMENT=true`
-4. Restart app, rerun post-deploy verification commands.
+1. Confirm **Build and deploy ml-service container** succeeded on `main`.
+2. If you added a **backend** proxy route, merge and deploy the **.NET** app too.
+3. If you changed **admin UI**, deploy the **frontend**.
 
-### F. Rules of engagement
+### If deploy is green but the site looks wrong
 
-- Do not change startup command ad hoc in production without documenting it here.
-- Do not reintroduce runtime venv creation in `startup.sh` (`python3 -m venv` in App Service startup has caused outages).
-- Always verify with `/health` and `/openapi.json` after deploy; never assume green CI means live app is current.
+- **Container:** confirm image tag/digest in the portal, **Log stream**, and `/health.buildId`. Do not use Kudu `wwwroot` as proof of running code.
+- **503:** empty **Startup Command**, **`WEBSITES_PORT=8000`**, image pull logs — see “Smoke test returns 503” below.
 
-## 8) Option A (recommended): container deploy on same App Service
+---
 
-This is the deterministic path that removes Oryx/runtime drift while keeping the same
-`ml-pipelines` hostname.
+## Smoke test returns 503
 
-### What this changes
+1. **Startup Command** must be **empty** (portal → Configuration → General settings).
+2. **`WEBSITES_PORT=8000`**
+3. **Log stream** / **Diagnose and solve problems** — image pull auth, Python tracebacks, `Listening at: http://0.0.0.0:8000`.
+4. **Cold start** — first request can take a long time (imports + cache); the workflow retries for several minutes.
 
-- App runs a Docker image built from `ml-service/Dockerfile`.
-- GitHub Actions builds/pushes image to ACR and updates App Service image tag.
-- `/health.buildId` is stamped with `GITHUB_SHA` each deploy.
+---
 
-### One-time Azure setup
+## Rollback (container)
 
-1. Create or choose an Azure Container Registry (ACR).
-2. Add these GitHub secrets in repo settings:
-   - `ACR_LOGIN_SERVER` (for example `myregistry.azurecr.io`)
-   - `ACR_USERNAME`
-   - `ACR_PASSWORD`
-3. Keep existing Azure login secrets already used by workflows.
-4. In App Service (`ml-pipelines`) set startup mode to container (no startup command required).
-5. Keep existing runtime app settings (`SOCIAL_MEDIA_DB_URL`, etc.).
-
-### Workflow to use
-
-- New workflow: `.github/workflows/main_ml-pipelines-container.yml`
-- It will:
-  1) validate Python app
-  2) build and push image tags (`sha`, `latest`)
-  3) configure `ml-pipelines` to use `sha` tag
-  4) set `WEBSITES_PORT=8000` and `ML_API_BUILD_ID=$GITHUB_SHA`
-  5) restart and smoke test
-
-### Safe migration steps (production)
-
-1. Preferred: create a staging slot on `ml-pipelines`.
-2. Run container workflow once and point slot to image.
-3. Validate:
-   - `/health`
-   - `/openapi.json`
-   - `/reports/tier1-analytics`
-   - `/donations/analytics`
-4. Swap slot to production.
-
-### Rollback
-
-If needed, point App Service back to previous known-good image tag:
+Point the Web App at a previous image tag (known-good SHA), then restart:
 
 ```bash
 az webapp config container set \
-  --name ml-pipelines \
-  --resource-group ml-pipelines_group \
+  --name <app> \
+  --resource-group <rg> \
   --container-image-name <acr-login-server>/ml-service:<previous-sha>
+
+az webapp restart --name <app> --resource-group <rg>
 ```
 
-Then restart:
+---
 
-```bash
-az webapp restart --name ml-pipelines --resource-group ml-pipelines_group
-```
+## Appendix: legacy zip / Oryx (do not use for current production)
 
-### Notes
+If someone ever revives zip deploy to the same app:
 
-- During container mode, the old Python code zip/Oryx path is no longer authoritative.
-- This is the strongest fix for "workflow passed but stale code served" issues.
+- Startup: `bash /home/site/wwwroot/startup.sh`
+- **`SCM_DO_BUILD_DURING_DEPLOYMENT=true`**
+- Kudu: inspect `/home/site/wwwroot/app/main.py`
 
-### Smoke test returns 503
+This conflicts with **container** mode; pick **one** deploy path per Web App.
 
-Usually the site is still returning **503** because the Linux process never reaches a healthy listen state:
+### Rules of engagement
 
-1. **Startup command** — If the app was ever zip-deployed, it may still be `bash /home/site/wwwroot/startup.sh`. Inside a custom image that path does not exist. Clear it: Azure Portal → App Service → **Configuration** → **General settings** → **Startup Command** → empty → Save; or rely on the container workflow step that runs `az webapp config set --startup-file ""`.
-2. **Port** — `WEBSITES_PORT` must be `8000` (matches `Dockerfile` / `gunicorn --bind`).
-3. **Logs** — **Log stream** or **Diagnose and solve problems** → look for image pull errors, `ModuleNotFoundError`, or crashes before `Listening at: http://0.0.0.0:8000`.
-4. **Cold start** — First request after deploy can exceed a minute while the app imports and warms caches; the workflow retries health for several minutes.
+- Do not set a **Startup Command** that points at host paths unless they exist **inside** the running image.
+- Do not reintroduce **`python3 -m venv`** in `startup.sh` on App Service (broken `ensurepip` on some images).
+- After any deploy, verify **`/health`** and **`/openapi.json`**; green CI alone is not enough if the wrong process is running.
