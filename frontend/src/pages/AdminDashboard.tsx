@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { fetchJson } from '../api/client'
 
 const LAST_VISIT_KEY = 'lh-admin-dashboard-last-visit-at'
@@ -24,6 +25,25 @@ type DonationActivity = {
   amount?: number | null
   estimatedValue?: number | null
   createdAt: string
+}
+
+/** Same shape as /api/admin/analytics/donations-ml (ml-service pipeline dataset). */
+type DonationsMlPayload = {
+  generatedAtUtc: string
+  dataSource: string
+  loadWarning: string
+  summary: {
+    totalGifts: number
+    totalEstimatedValue: number
+    avgEstimatedValue: number
+    recurringShare: number
+    withSocialReferralCount: number
+  }
+  monthlyTotals: Array<{ month: string; totalEstimatedValue: number }>
+  pipelineModel: {
+    holdoutMaePredictive?: number
+    holdoutR2Predictive?: number
+  } | null
 }
 
 const DONATION_TYPE_LABELS = ['Monetary', 'In-kind', 'Time', 'Skills', 'Social media'] as const
@@ -88,6 +108,8 @@ export function AdminDashboard() {
     return new Date(0)
   })
   const [err, setErr] = useState<string | null>(null)
+  const [donationsMl, setDonationsMl] = useState<DonationsMlPayload | null>(null)
+  const [donationsMlErr, setDonationsMlErr] = useState<string | null>(null)
   const contributionCountByType = recentActivity.reduce<Record<string, number>>((acc, item) => {
     acc[item.typeLabel] = (acc[item.typeLabel] ?? 0) + 1
     return acc
@@ -161,6 +183,20 @@ export function AdminDashboard() {
     }
   }, [cutoffDate])
 
+  useEffect(() => {
+    let cancelled = false
+    fetchJson<DonationsMlPayload>('/api/admin/analytics/donations-ml')
+      .then((data) => {
+        if (!cancelled) setDonationsMl(data)
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setDonationsMlErr(e.message)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   function markActivityRead() {
     const now = new Date()
     setCutoffDate(now)
@@ -225,8 +261,64 @@ export function AdminDashboard() {
         <div className="col-lg-8">
           <div className="lh-chart-card h-100">
             <div className="fw-semibold mb-1">Donation trends</div>
-            <div className="text-secondary small mb-3">Use Reports & Analytics for detailed trend charts.</div>
-            <div className="lh-chart-placeholder">Trend visual summary available after data import expansion</div>
+            <div className="text-secondary small mb-2">
+              From the donations pipeline (ml-service / <code className="small">datasets/donations.csv</code>).{' '}
+              <Link to="/Admin/Analytics">Reports &amp; analytics</Link> for channel mix and tables.
+            </div>
+            {donationsMlErr ? (
+              <div className="alert alert-warning py-2 small mb-0">
+                Pipeline trends unavailable ({donationsMlErr}). Check ml-service URL and dataset on the host.
+              </div>
+            ) : null}
+            {donationsMl?.loadWarning ? (
+              <div className="alert alert-info py-2 small mb-2">{donationsMl.loadWarning}</div>
+            ) : null}
+            {donationsMl && donationsMl.monthlyTotals.length > 0 ? (
+              <>
+                <div style={{ width: '100%', height: 240 }}>
+                  <ResponsiveContainer>
+                    <BarChart
+                      data={donationsMl.monthlyTotals.map((m) => ({
+                        month: m.month,
+                        total: m.totalEstimatedValue,
+                      }))}
+                    >
+                      <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip />
+                      <Bar dataKey="total" fill="var(--bs-primary)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="d-flex flex-wrap gap-3 mt-2 small text-secondary">
+                  <span>
+                    Gifts: <strong className="text-body">{donationsMl.summary.totalGifts}</strong>
+                  </span>
+                  <span>
+                    Total est. value:{' '}
+                    <strong className="text-body">{donationsMl.summary.totalEstimatedValue.toLocaleString()}</strong>
+                  </span>
+                  {donationsMl.pipelineModel ? (
+                    <span>
+                      Holdout MAE / R²:{' '}
+                      <strong className="text-body">
+                        {donationsMl.pipelineModel.holdoutMaePredictive != null
+                          ? donationsMl.pipelineModel.holdoutMaePredictive.toFixed(1)
+                          : '—'}{' '}
+                        /{' '}
+                        {donationsMl.pipelineModel.holdoutR2Predictive != null
+                          ? donationsMl.pipelineModel.holdoutR2Predictive.toFixed(3)
+                          : '—'}
+                      </strong>
+                    </span>
+                  ) : null}
+                </div>
+              </>
+            ) : donationsMl && donationsMl.monthlyTotals.length === 0 ? (
+              <p className="small text-secondary mb-0">No monthly rows in the pipeline dataset (empty or filtered).</p>
+            ) : !donationsMlErr ? (
+              <div className="text-secondary small">Loading pipeline trends…</div>
+            ) : null}
           </div>
         </div>
         <div className="col-lg-4">
@@ -327,11 +419,6 @@ export function AdminDashboard() {
               <div className="col-6">
                 <Link className="btn lh-btn-ghost w-100 lh-btn-pill btn-sm" to="/Admin/Okr">
                   OKR metrics
-                </Link>
-              </div>
-              <div className="col-6">
-                <Link className="btn lh-btn-ghost w-100 lh-btn-pill btn-sm" to="/Admin/Audit">
-                  Audit log
                 </Link>
               </div>
             </div>
