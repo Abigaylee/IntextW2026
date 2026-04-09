@@ -49,6 +49,9 @@ def _artifact_root() -> Path:
 
 load_dotenv(_artifact_root() / '.env', override=False)
 
+# Bumped when you need to confirm Azure is running this file (see GET /health).
+_ML_API_BUILD_ID = '2026-04-09-admin-analytics-routes'
+
 
 def _load_from_database(db_url: str) -> pd.DataFrame:
     query = """
@@ -370,7 +373,11 @@ _cache = _load_cached_or_build()
 _donations_cache = _safe_load_donations_analytics()
 @app.get('/health')
 def health() -> dict[str, str]:
-    return {'status': 'ok'}
+    return {
+        'status': 'ok',
+        'buildId': _ML_API_BUILD_ID,
+        'hint': 'If buildId is missing here, this site is not running the latest ml-service code.',
+    }
 
 
 @app.get('/social-media/summary')
