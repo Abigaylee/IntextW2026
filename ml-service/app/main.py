@@ -384,8 +384,16 @@ def root() -> dict[str, Any]:
         'impactAnalytics': '/impact/analytics',
     }
 def _repo_root() -> Path:
-    """Repository root (parent of ml-service/)."""
-    return _artifact_root().resolve().parent
+    """
+    Repository root in local dev; falls back to ml-service root in container images.
+    Local: <repo>/ml-service -> returns <repo> (has datasets/).
+    Container: /app -> parent is / (no datasets/) -> returns /app.
+    """
+    service_root = _artifact_root().resolve()
+    candidate = service_root.parent
+    if (candidate / 'datasets').exists():
+        return candidate
+    return service_root
 
 
 def _donations_analytics_empty(load_warning: str = '', data_source: str = 'empty') -> dict[str, Any]:
@@ -739,13 +747,30 @@ def _compute_donations_signature(df: pd.DataFrame) -> str:
 
 
 def _forecast_cache_path() -> Path:
-    root = _repo_root()
+    root = _artifact_root().resolve()
     return Path(
         os.getenv(
             'DONATIONS_FORECAST_CACHE_PATH',
-            str(root / 'ml-service' / 'artifacts' / 'donations_next_month_forecast_cache.json'),
+            str(root / 'artifacts' / 'donations_next_month_forecast_cache.json'),
         )
     )
+
+
+def _default_forecast_model_path() -> Path:
+    """
+    Resolve forecast model path across local repo and container image layouts.
+    Preferred in container: /app/artifacts/donation_prediction_next_month_model.joblib
+    """
+    root = _repo_root()
+    service_root = _artifact_root().resolve()
+    candidates = [
+        service_root / 'artifacts' / 'donation_prediction_next_month_model.joblib',
+        root / 'ml-pipelines' / 'artifacts' / 'donation_prediction_next_month_model.joblib',
+    ]
+    for p in candidates:
+        if p.is_file():
+            return p
+    return candidates[0]
 
 
 def _read_forecast_cache_file() -> tuple[str | None, dict[str, Any] | None]:
@@ -867,11 +892,10 @@ def _build_monthly_prediction_frame(
 
 
 def _build_donations_next_month_forecast() -> dict[str, Any]:
-    root = _repo_root()
     model_path = Path(
         os.getenv(
             'DONATIONS_FORECAST_MODEL_PATH',
-            str(root / 'ml-pipelines' / 'artifacts' / 'donation_prediction_next_month_model.joblib'),
+            str(_default_forecast_model_path()),
         )
     )
     if not model_path.is_file():

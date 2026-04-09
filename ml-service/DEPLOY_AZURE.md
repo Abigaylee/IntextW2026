@@ -42,6 +42,9 @@ You do **not** manually zip-deploy the `ml-service` folder in normal operation. 
 - **`SOCIAL_MEDIA_DB_URL`** or **`ConnectionStrings__DefaultConnection`** — PostgreSQL for social posts, **donations**, and tier-1 program tables when available.
 - Optional fallbacks if the full repo layout is not in the image (usually not needed when DB is set):
   - `SOCIAL_MEDIA_DATASET_PATH`, `DONATIONS_DATASET_PATH`, `DONATIONS_METRICS_PATH`, tier-1 CSV paths (see older comments in `app/main.py` / env examples).
+- Forecast artifact path (optional override):
+  - `DONATIONS_FORECAST_MODEL_PATH=/app/artifacts/donation_prediction_next_month_model.joblib`
+  - default runtime expects the model inside the container image under `/app/artifacts/`.
 
 Local-only / artifact refresh (optional):
 
@@ -143,6 +146,7 @@ Expected:
 1. Add or change routes in `ml-service/app/main.py` (and dependencies if needed).
 2. CI validates: `py_compile`, route greps, `startup.sh` safety checks (see `main_ml-pipelines-container.yml`).
 3. Local: `python -m py_compile app/main.py` (and `bash -n startup.sh` if you touch it).
+4. If `main.py` imports a new package (for example `joblib`, `scikit-learn`), add it to `ml-service/requirements.txt` in the same PR.
 
 ### After merge
 
@@ -154,6 +158,39 @@ Expected:
 
 - **Container:** confirm image tag/digest in the portal, **Log stream**, and `/health.buildId`. Do not use Kudu `wwwroot` as proof of running code.
 - **503:** empty **Startup Command**, **`WEBSITES_PORT=8000`**, image pull logs — see “Smoke test returns 503” below.
+- **502 from backend analytics cards (local):** check `backend/Lighthouse.Web/appsettings.Development.json` `SocialMediaMlApi.BaseUrl` matches your local ml-service port (`http://127.0.0.1:8001` if using `uvicorn --port 8001`).
+
+### Forecast endpoint troubleshooting (`/donations/next-month-forecast`)
+
+If forecast is blank in UI, run this first:
+
+```bash
+curl -fsS "https://<ml-service>.azurewebsites.net/donations/next-month-forecast" | jq .
+```
+
+Common outcomes:
+
+- `dataSource: "error"` + `Forecast model artifact not found: ...`
+  - The container image does not include `donation_prediction_next_month_model.joblib`.
+  - Ensure workflow copies `ml-pipelines/artifacts/donation_prediction_next_month_model.joblib` into `ml-service/artifacts/` **before Docker build**.
+  - Ensure Dockerfile includes `COPY artifacts /app/artifacts`.
+  - Redeploy container image.
+- `No module named 'joblib'` or `No module named 'sklearn'`
+  - Add missing package(s) to `ml-service/requirements.txt` and rebuild.
+- `dataSource: "database-error"`
+  - Verify DB connection settings (`SOCIAL_MEDIA_DB_URL` or `ConnectionStrings__DefaultConnection`) and DB reachability.
+
+To confirm model file exists in running container (App Service SSH):
+
+```bash
+ls -la /app/artifacts
+python - <<'PY'
+import os
+print(os.path.isfile('/app/artifacts/donation_prediction_next_month_model.joblib'))
+PY
+```
+
+Expected: `True`.
 
 ---
 
