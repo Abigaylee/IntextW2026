@@ -247,15 +247,41 @@ public class ImpactApiController : ControllerBase
 
         var (safehousePerformance, outcomeFromCase, operationalCaseWindow) =
             await BuildOperationalSafehouseComparisonAsync(cancellationToken);
-        var avgEducationAllTime = await _db.EducationRecords.AsNoTracking()
+        var todayUtc = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        var educationRows = await _db.EducationRecords.AsNoTracking()
+            .Select(e => new { e.ResidentId, e.RecordDate, e.ProgressPercent })
+            .ToListAsync(cancellationToken);
+        var educationRowsWithProgress = educationRows
             .Where(e => e.ProgressPercent != null)
-            .Select(e => e.ProgressPercent!.Value)
-            .DefaultIfEmpty()
-            .AverageAsync(cancellationToken);
-        var avgEducationAllTimeRounded = avgEducationAllTime <= 0m ? (decimal?)null : Math.Round(avgEducationAllTime, 2);
+            .Select(e => new { e.ResidentId, e.RecordDate, Progress = e.ProgressPercent!.Value })
+            .ToList();
+        var avgEducationAllTimeRounded = educationRowsWithProgress.Count == 0
+            ? (decimal?)null
+            : Math.Round(educationRowsWithProgress.Average(e => e.Progress), 2);
+        var firstMonth = new DateOnly(todayUtc.Year, todayUtc.Month, 1).AddMonths(-11);
+        var monthKeys = Enumerable.Range(0, 12)
+            .Select(i => firstMonth.AddMonths(i))
+            .ToList();
+        var educationAvgByMonth = educationRowsWithProgress
+            .GroupBy(e => new DateOnly(e.RecordDate.Year, e.RecordDate.Month, 1))
+            .ToDictionary(
+                g => g.Key,
+                g => Math.Round(g.Average(x => x.Progress), 2));
+        var donationAmountByMonth = donations12MonthRows
+            .GroupBy(d => new DateOnly(d.DonationDate.Year, d.DonationDate.Month, 1))
+            .ToDictionary(
+                g => g.Key,
+                g => Math.Round(g.Sum(x => x.Amount ?? 0m), 2));
+        var educationMonthlyTrend = monthKeys
+            .Select(m => new
+            {
+                month = m.ToString("yyyy-MM"),
+                avgProgress = educationAvgByMonth.TryGetValue(m, out var avg) ? avg : (decimal?)null,
+                donations = donationAmountByMonth.TryGetValue(m, out var amt) ? amt : 0m
+            })
+            .ToList();
 
         var donorOkrs = BuildDonorOkrs(donations);
-        var todayUtc = DateOnly.FromDateTime(DateTime.UtcNow.Date);
         var last90Start = todayUtc.AddDays(-89);
         var last365Start = todayUtc.AddDays(-364);
         var reintegratedLast90Days = residents.Count(r =>
@@ -322,6 +348,17 @@ public class ImpactApiController : ControllerBase
                 dollarsPerReintegration,
                 dollarsPerActiveResident,
                 windowLabel = $"Last 12 months ({last365Start:yyyy-MM-dd}–{todayUtc:yyyy-MM-dd} UTC)"
+            },
+            educationInsights = new
+            {
+                avgProgressAllTime = avgEducationAllTimeRounded,
+                totalRecords = educationRows.Count,
+                nonNullProgressRecords = educationRowsWithProgress.Count,
+                distinctResidentsWithEducation = educationRowsWithProgress
+                    .Select(e => e.ResidentId)
+                    .Distinct()
+                    .Count(),
+                monthlyTrend = educationMonthlyTrend
             },
             safehousePerformance,
             donorOkrs,
