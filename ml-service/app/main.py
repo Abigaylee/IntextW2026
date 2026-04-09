@@ -6,9 +6,11 @@ Endpoints include social summaries, donations trends/forecast, impact payloads, 
 analytics. Prefer PostgreSQL when env connection strings are set; otherwise CSV and in-repo artifacts.
 """
 
+import copy
 import json
 import os
 import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +25,11 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from app.db_access import fetch_dataframe, resolve_db_connection_value
+from app.resident_transfer_risk import (
+    _normalize_tier_series_for_counts,
+    _risk_tier_from_probabilities,
+    build_resident_transfer_risk_summary_from_database,
+)
 from app.tier1_analytics import safe_build_tier1_analytics
 
 
@@ -731,6 +738,10 @@ def _safe_load_donations_explore_summary() -> dict[str, Any]:
         return _donations_explore_empty(f'Explore summary failed: {ex}', 'error')
 
 
+_resident_transfer_risk_db_cache_lock = threading.Lock()
+_resident_transfer_risk_db_cache: dict[str, Any] = {'expiry': 0.0, 'payload': None}
+
+
 def _resident_transfer_risk_empty(load_warning: str = '', data_source: str = 'empty') -> dict[str, Any]:
     return {
         'generatedAtUtc': datetime.now(timezone.utc).isoformat(),
@@ -822,23 +833,21 @@ def _build_resident_transfer_risk_from_artifacts_csv() -> dict[str, Any]:
 
     tier_col = 'risk_tier' if 'risk_tier' in scored.columns else None
     if tier_col is None:
-        scored['risk_tier'] = pd.cut(
-            scored['pred_transfer_prob'],
-            bins=[-0.001, 0.5, 0.75, 1.0],
-            labels=['Monitor', 'Medium', 'High'],
-        )
+        scored['risk_tier'] = _risk_tier_from_probabilities(scored['pred_transfer_prob'])
         tier_col = 'risk_tier'
+    else:
+        scored[tier_col] = _normalize_tier_series_for_counts(scored[tier_col])
 
     tier_counts: list[dict[str, Any]] = []
-    for label, count in scored[tier_col].fillna('Unknown').value_counts().items():
+    for label, count in _normalize_tier_series_for_counts(scored[tier_col]).value_counts().items():
         tier_counts.append({'tier': str(label), 'count': int(count)})
 
     top_residents: list[dict[str, Any]] = []
     has_resident_identifiers = all(col in scored.columns for col in ['resident_id', 'case_control_no'])
     if has_resident_identifiers:
-        tier_rank = {'High': 3, 'Medium': 2, 'Monitor': 1}
+        tier_rank = {'high': 3, 'medium': 2, 'monitor': 1}
         ranked = scored.copy()
-        ranked['__tier_rank'] = ranked[tier_col].astype(str).map(tier_rank).fillna(0)
+        ranked['__tier_rank'] = ranked[tier_col].astype(str).str.strip().str.lower().map(tier_rank).fillna(0)
         ranked = ranked.sort_values(['__tier_rank', 'pred_transfer_prob'], ascending=[False, False]).head(5)
         for _, row in ranked.iterrows():
             top_residents.append(
@@ -854,7 +863,7 @@ def _build_resident_transfer_risk_from_artifacts_csv() -> dict[str, Any]:
             )
 
     n = int(len(scored))
-    high_count = int((scored[tier_col].astype(str) == 'High').sum())
+    high_count = int(scored[tier_col].astype(str).str.strip().str.lower().eq('high').sum())
     high_share = round(high_count / n, 4) if n else 0.0
     avg_prob = round(float(scored['pred_transfer_prob'].mean()), 4) if n else 0.0
 
@@ -901,10 +910,16 @@ def _build_resident_transfer_risk_summary() -> dict[str, Any]:
     """Production: score active residents from PostgreSQL (same env as social/tier-1). Dev without DB: CSV artifact."""
     conn = resolve_db_connection_value()
     if conn:
+        ttl = float(os.getenv('RESIDENT_TRANSFER_RISK_CACHE_TTL_SECONDS', '60'))
+        now = time.time()
+        if ttl > 0:
+            with _resident_transfer_risk_db_cache_lock:
+                pl = _resident_transfer_risk_db_cache.get('payload')
+                ex = float(_resident_transfer_risk_db_cache.get('expiry', 0.0))
+                if pl is not None and now < ex:
+                    return copy.deepcopy(pl)
         try:
-            from app.resident_transfer_risk import build_resident_transfer_risk_summary_from_database
-
-            return build_resident_transfer_risk_summary_from_database(conn)
+            body = build_resident_transfer_risk_summary_from_database(conn)
         except Exception as ex:
             return _resident_transfer_risk_empty(
                 'Live database scoring failed. '
@@ -912,6 +927,11 @@ def _build_resident_transfer_risk_summary() -> dict[str, Any]:
                 f'resident_transfer_risk_model.joblib is bundled in the container. Details: {ex}',
                 'database-error',
             )
+        if ttl > 0:
+            with _resident_transfer_risk_db_cache_lock:
+                _resident_transfer_risk_db_cache['payload'] = body
+                _resident_transfer_risk_db_cache['expiry'] = now + ttl
+        return body
     return _build_resident_transfer_risk_from_artifacts_csv()
 
 
