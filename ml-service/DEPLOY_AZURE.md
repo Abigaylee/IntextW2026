@@ -25,10 +25,10 @@ Deploy `ml-service` as a separate Azure App Service (Python).
   - `EDUCATION_DATASET_PATH=../datasets/education_records.csv`
   - `HEALTH_WELLBEING_DATASET_PATH=../datasets/health_wellbeing_records.csv`
 
-### Startup command
+### Startup command (recommended)
 
 ```bash
-gunicorn -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:$PORT
+bash /home/site/wwwroot/startup.sh
 ```
 
 Verify:
@@ -36,6 +36,16 @@ Verify:
 - `GET https://<ml-service>.azurewebsites.net/health`
 - `GET https://<ml-service>.azurewebsites.net/social-media/analytics`
 - `GET https://<ml-service>.azurewebsites.net/reports/tier1-analytics`
+- `GET https://<ml-service>.azurewebsites.net/donations/analytics`
+
+### App settings for stable deploy behavior
+
+- `SCM_DO_BUILD_DURING_DEPLOYMENT=true` (keep this true in current setup)
+- `SOCIAL_MEDIA_DB_URL=<your PostgreSQL connection string>` (or `ConnectionStrings__DefaultConnection`)
+- optional:
+  - `FORCE_REBUILD_VENV=0` (set to `1` for one deploy if you need to force a clean venv rebuild)
+  - `GUNICORN_WORKERS=4`
+  - `GUNICORN_TIMEOUT=120`
 
 ## 2) Configure .NET backend bridge
 
@@ -82,3 +92,37 @@ python3 scripts/build_social_media_cache.py
 ```
 
 Then redeploy/restart ML service so new cache is served.
+
+## 5) Safe production checklist (every release)
+
+1. Merge to `main` (workflow deploys `./ml-service`).
+2. Wait for GitHub Action success.
+3. In App Service, restart once (optional but recommended after endpoint additions).
+4. Run smoke checks:
+
+```bash
+curl -sS "https://<ml-service>.azurewebsites.net/health"
+curl -sS "https://<ml-service>.azurewebsites.net/openapi.json" | jq '.info, .paths | keys'
+curl -sS "https://<ml-service>.azurewebsites.net/reports/tier1-analytics" | jq '.generatedAtUtc, .residents.dataSource'
+curl -sS "https://<ml-service>.azurewebsites.net/donations/analytics" | jq '.dataSource, .summary, (.channelMix | length), (.giftTypeMix | length)'
+```
+
+Expected:
+- `/health` returns `status: ok` and a `buildId`.
+- OpenAPI includes both `/reports/tier1-analytics` and `/donations/analytics`.
+- Tier1 endpoint responds with JSON payload.
+- Donations endpoint returns `dataSource: "database"` in production (or clear warning if fallback used).
+
+## 6) Kudu diagnostics (if anything drifts)
+
+Open Kudu SSH and run:
+
+```bash
+cd /home/site/wwwroot
+wc -l app/main.py
+grep -n "title='Lighthouse ML API'" app/main.py
+grep -n "/reports/tier1-analytics\\|/donations/analytics" app/main.py
+bash startup.sh
+```
+
+If `bash startup.sh` fails, the error text is the source of truth (missing deps, bad env, etc.).
