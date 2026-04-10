@@ -350,6 +350,160 @@ body.lh-body {
   padding-top: 1.25rem !important;
 }
 
+/* Home: “What we do” pillars — card layout */
+.lh-home-whatwedo {
+  background: var(--lh-card);
+  border: 1px solid var(--lh-border);
+  border-radius: 20px;
+  padding: 2rem 1.25rem 2.25rem;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.07);
+}
+
+@media (min-width: 992px) {
+  .lh-home-whatwedo {
+    padding: 2.75rem 2.5rem 3rem;
+  }
+}
+
+.lh-home-whatwedo-header {
+  max-width: 38rem;
+}
+
+.lh-home-whatwedo-kicker {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #f05b2f;
+  margin-bottom: 0.5rem;
+}
+
+.lh-home-whatwedo-title {
+  font-size: clamp(1.5rem, 3.2vw, 2.35rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 800;
+  color: var(--lh-primary);
+}
+
+.lh-home-whatwedo-lead {
+  font-size: 1.02rem;
+  line-height: 1.55;
+  max-width: 32rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.lh-home-pillar-card {
+  border-radius: 14px !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.lh-home-pillar-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.1) !important;
+}
+
+.lh-home-pillar-media {
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  position: relative;
+}
+
+.lh-home-pillar-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(15, 23, 42, 0.82) 0%,
+    rgba(15, 23, 42, 0.45) 42%,
+    transparent 72%
+  );
+}
+
+.lh-home-pillar-overlay-title {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 1.35rem 0.85rem 1rem;
+  font-size: clamp(1.02rem, 2.6vw, 1.2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-align: center;
+  color: #fff;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    0 2px 14px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.lh-home-pillar-media--peach {
+  background: linear-gradient(160deg, #fff6f5 0%, #ffd5cf 100%);
+}
+
+.lh-home-pillar-media--green {
+  background: linear-gradient(160deg, #f3fff9 0%, #c4f2df 100%);
+}
+
+.lh-home-pillar-media--lilac {
+  background: linear-gradient(160deg, #fbf7ff 0%, #e2ccff 100%);
+}
+
+.lh-home-pillar-media--gold {
+  background: linear-gradient(160deg, #fffdf1 0%, #ffedba 100%);
+}
+
+.lh-home-pillar-img {
+  position: relative;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+  transition: transform 0.35s ease;
+}
+
+/* Empowerment: smaller circle in asset vs other pillars — scale up; shift up/left to match peers and clip flat top */
+.lh-home-pillar-media--gold .lh-home-pillar-img {
+  object-position: 50% 52%;
+  transform: translate(-8%, 2%) scale(1.24);
+  transform-origin: center center;
+}
+
+.lh-home-pillar-card:hover .lh-home-pillar-img {
+  transform: scale(1.04);
+}
+
+.lh-home-pillar-card:hover .lh-home-pillar-media--gold .lh-home-pillar-img {
+  transform: translate(-8%, 2%) scale(1.29);
+}
+
+.lh-home-pillar-copy {
+  line-height: 1.55;
+  max-width: 18rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.lh-home-pillar-link {
+  color: var(--lh-accent, #ffb200) !important;
+  font-size: 0.92rem;
+}
+
+.lh-home-pillar-link:hover {
+  color: color-mix(in srgb, var(--lh-accent, #ffb200) 85%, #000) !important;
+  text-decoration: underline !important;
+}
+
 .lh-impact-kicker {
   font-size: 0.95rem;
   font-style: italic;

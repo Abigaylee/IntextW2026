@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { fetchJson } from '../api/client'
+import { formatUsd } from '../utils/formatUsd'
 
 const LAST_VISIT_KEY = 'lh-admin-dashboard-last-visit-at'
 const LAST_READ_KEY = 'lh-admin-dashboard-last-read-at'
@@ -284,8 +285,8 @@ export function AdminDashboard() {
         <div className="lh-kpi-card lh-kpi-primary">
           <div className="d-flex justify-content-between align-items-start">
             <div>
-              <div className="small opacity-75">Total donations</div>
-              <div className="lh-kpi-value mt-1">{metrics ? metrics.totalDonationValue.toLocaleString() : '—'}</div>
+              <div className="small opacity-75">Total donations (USD)</div>
+              <div className="lh-kpi-value mt-1">{metrics ? formatUsd(Number(metrics.totalDonationValue)) : '—'}</div>
               <div className="lh-kpi-meta mt-1">Live from current dataset</div>
             </div>
             <span className="lh-kpi-icon fs-4">&#36;</span>
