@@ -4,12 +4,6 @@ import { formatUsd } from '../utils/formatUsd'
 
 const DONOR_PAGE_SIZE = 50
 
-const phpFmt = new Intl.NumberFormat('en-PH', {
-  style: 'currency',
-  currency: 'PHP',
-  maximumFractionDigits: 0,
-})
-
 type Okr = {
   activeSupporters: number
   totalDonationValue: number
