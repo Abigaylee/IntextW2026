@@ -408,6 +408,40 @@ body.lh-body {
   position: relative;
 }
 
+.lh-home-pillar-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(15, 23, 42, 0.82) 0%,
+    rgba(15, 23, 42, 0.45) 42%,
+    transparent 72%
+  );
+}
+
+.lh-home-pillar-overlay-title {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 1.35rem 0.85rem 1rem;
+  font-size: clamp(1.02rem, 2.6vw, 1.2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  text-align: center;
+  color: #fff;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    0 2px 14px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
 .lh-home-pillar-media--peach {
   background: linear-gradient(160deg, #fff6f5 0%, #ffd5cf 100%);
 }
@@ -425,6 +459,8 @@ body.lh-body {
 }
 
 .lh-home-pillar-img {
+  position: relative;
+  z-index: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -433,18 +469,19 @@ body.lh-body {
   transition: transform 0.35s ease;
 }
 
+/* Empowerment: smaller circle in asset vs other pillars — scale up; shift up/left to match peers and clip flat top */
 .lh-home-pillar-media--gold .lh-home-pillar-img {
-  object-position: 60% center;
+  object-position: 50% 52%;
+  transform: translate(-8%, 2%) scale(1.24);
+  transform-origin: center center;
 }
 
 .lh-home-pillar-card:hover .lh-home-pillar-img {
   transform: scale(1.04);
 }
 
-.lh-home-pillar-title {
-  color: var(--lh-primary);
-  font-weight: 700;
-  letter-spacing: -0.01em;
+.lh-home-pillar-card:hover .lh-home-pillar-media--gold .lh-home-pillar-img {
+  transform: translate(-8%, 2%) scale(1.29);
 }
 
 .lh-home-pillar-copy {

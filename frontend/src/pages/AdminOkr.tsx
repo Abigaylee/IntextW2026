@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchJson } from '../api/client'
+import { formatUsd } from '../utils/formatUsd'
 
 const DONOR_PAGE_SIZE = 50
 
@@ -68,8 +69,8 @@ export function AdminOkr() {
           <div className="col-md-6 col-xl-3">
             <div className="card border-0 shadow-sm h-100">
               <div className="card-body">
-                <div className="text-secondary small">Total donation value (est.)</div>
-                <div className="display-6">{okr.totalDonationValue}</div>
+                <div className="text-secondary small">Total donation value (est., USD)</div>
+                <div className="display-6">{formatUsd(Number(okr.totalDonationValue))}</div>
               </div>
             </div>
           </div>

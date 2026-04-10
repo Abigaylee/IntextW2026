@@ -69,10 +69,10 @@ export function PublicHome() {
           <div className="col-sm-6 col-xl-3">
             <article className="card border-0 shadow-sm h-100 lh-home-pillar-card overflow-hidden">
               <div className="lh-home-pillar-media lh-home-pillar-media--peach">
-                <img src="/img/Safety.webp" alt="Illustration representing safety and shelter" className="lh-home-pillar-img" />
+                <img src="/img/Safety.webp" alt="" className="lh-home-pillar-img" />
+                <h3 className="lh-home-pillar-overlay-title">Safety support</h3>
               </div>
-              <div className="card-body p-4 text-center d-flex flex-column">
-                <h3 className="h5 lh-home-pillar-title mb-2">Safety support</h3>
+              <div className="card-body p-4 pt-3 text-center d-flex flex-column">
                 <p className="text-body-secondary small flex-grow-1 mb-3 lh-home-pillar-copy">
                   Protection is the first step to healing—we prioritize safe shelter and immediate care.
                 </p>
@@ -85,10 +85,10 @@ export function PublicHome() {
           <div className="col-sm-6 col-xl-3">
             <article className="card border-0 shadow-sm h-100 lh-home-pillar-card overflow-hidden">
               <div className="lh-home-pillar-media lh-home-pillar-media--green">
-                <img src="/img/Healing.jpg" alt="Illustration representing healing and education" className="lh-home-pillar-img" />
+                <img src="/img/Healing.jpg" alt="" className="lh-home-pillar-img" />
+                <h3 className="lh-home-pillar-overlay-title">Healing &amp; education</h3>
               </div>
-              <div className="card-body p-4 text-center d-flex flex-column">
-                <h3 className="h5 lh-home-pillar-title mb-2">Healing &amp; education</h3>
+              <div className="card-body p-4 pt-3 text-center d-flex flex-column">
                 <p className="text-body-secondary small flex-grow-1 mb-3 lh-home-pillar-copy">
                   Trauma-informed support and learning pathways for emotional recovery and growth.
                 </p>
@@ -101,10 +101,10 @@ export function PublicHome() {
           <div className="col-sm-6 col-xl-3">
             <article className="card border-0 shadow-sm h-100 lh-home-pillar-card overflow-hidden">
               <div className="lh-home-pillar-media lh-home-pillar-media--lilac">
-                <img src="/img/Justice.webp" alt="Illustration representing justice and advocacy" className="lh-home-pillar-img" />
+                <img src="/img/Justice.webp" alt="" className="lh-home-pillar-img" />
+                <h3 className="lh-home-pillar-overlay-title">Justice &amp; advocacy</h3>
               </div>
-              <div className="card-body p-4 text-center d-flex flex-column">
-                <h3 className="h5 lh-home-pillar-title mb-2">Justice &amp; advocacy</h3>
+              <div className="card-body p-4 pt-3 text-center d-flex flex-column">
                 <p className="text-body-secondary small flex-grow-1 mb-3 lh-home-pillar-copy">
                   Dignified support through legal and social processes so every child’s voice matters.
                 </p>
@@ -117,10 +117,10 @@ export function PublicHome() {
           <div className="col-sm-6 col-xl-3">
             <article className="card border-0 shadow-sm h-100 lh-home-pillar-card overflow-hidden">
               <div className="lh-home-pillar-media lh-home-pillar-media--gold">
-                <img src="/img/Empower.webp" alt="Illustration representing empowerment and growth" className="lh-home-pillar-img" />
+                <img src="/img/Empower.webp" alt="" className="lh-home-pillar-img" />
+                <h3 className="lh-home-pillar-overlay-title">Empowerment &amp; growth</h3>
               </div>
-              <div className="card-body p-4 text-center d-flex flex-column">
-                <h3 className="h5 lh-home-pillar-title mb-2">Empowerment &amp; growth</h3>
+              <div className="card-body p-4 pt-3 text-center d-flex flex-column">
                 <p className="text-body-secondary small flex-grow-1 mb-3 lh-home-pillar-copy">
                   Skills, confidence, and opportunity so survivors can lead their own futures.
                 </p>
